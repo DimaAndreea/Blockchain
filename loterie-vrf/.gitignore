@@ -1,0 +1,26 @@
+# node
+node_modules/
+npm-debug.log*
+yarn-error.log*
+
+# hardhat
+hardhat/node_modules/
+hardhat/cache/
+hardhat/artifacts/
+hardhat/.env
+
+# frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.env
+
+# env
+.env
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
