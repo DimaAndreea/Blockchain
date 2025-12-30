@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { getLottery } from "../utils/web3";
+import { estimateAndSend, normalizeTxError } from "../utils/tx";
 
 export default function AdminPanel({ account }) {
   const [tx, setTx] = useState("");
@@ -8,16 +9,25 @@ export default function AdminPanel({ account }) {
   async function requestDraw() {
     try {
       setError("");
-      setTx("Sending requestDraw...");
+      setTx("Preparing (estimating gas)...");
       const c = await getLottery(false);
 
-      const txResp = await c.requestDraw();
-      setTx("Pending...");
+      const { txResp, gasEstimate, estCostEth } = await estimateAndSend({
+        contract: c,
+        method: "requestDraw",
+      });
+
+      setTx(
+        `Gas ${gasEstimate.toString()} | Est fee ~ ${estCostEth} ETH | Pending... ${txResp.hash}`
+      );
       await txResp.wait();
+
       setTx("Confirmed ✅");
     } catch (e) {
       setTx("");
-      setError(e?.shortMessage || e?.message || "requestDraw failed (only owner!)");
+      // include a hint for owner-only without hiding real error
+      const msg = normalizeTxError(e);
+      setError(msg.includes("owner") ? msg : `${msg} (only owner?)`);
     }
   }
 

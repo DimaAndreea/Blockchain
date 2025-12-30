@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ethers } from "ethers";
 import { getLottery } from "../utils/web3";
+import { estimateAndSend, normalizeTxError } from "../utils/tx";
 
 export default function LotteryPanel({ account }) {
   const [ticketPrice, setTicketPrice] = useState("...");
@@ -11,16 +12,25 @@ export default function LotteryPanel({ account }) {
   const [tx, setTx] = useState("");
   const [error, setError] = useState("");
 
+  // previne refresh suprapus (dacă RPC e lent / rate limited)
+  const refreshingRef = useRef(false);
+
   async function refresh() {
+    if (refreshingRef.current) return;
+    refreshingRef.current = true;
+
     try {
       setError("");
       const c = await getLottery(true);
 
-      const tp = await c.ticketPrice();
-      const potWei = await c.getPot();
-      const cnt = await c.getPlayersCount();
-      const w = await c.lastWinner();
-      const lp = await c.lastPrize();
+      // rulează în paralel -> mai rapid (mai puține șanse să se suprapună intervalele)
+      const [tp, potWei, cnt, w, lp] = await Promise.all([
+        c.ticketPrice(),
+        c.getPot(),
+        c.getPlayersCount(),
+        c.lastWinner(),
+        c.lastPrize(),
+      ]);
 
       setTicketPrice(ethers.formatEther(tp));
       setPot(ethers.formatEther(potWei));
@@ -29,47 +39,62 @@ export default function LotteryPanel({ account }) {
       setLastPrize(ethers.formatEther(lp));
     } catch (e) {
       setError(e?.shortMessage || e?.message || "Refresh failed");
+    } finally {
+      refreshingRef.current = false;
     }
   }
 
   async function buyTicket() {
     try {
       setError("");
-      setTx("Sending buyTicket...");
+      setTx("Sending transaction...");
+
       const c = await getLottery(false);
       const tp = await c.ticketPrice();
 
-      const txResp = await c.buyTicket({ value: tp });
-      setTx("Pending...");
+      const txResp = await c.buyTicket({ value: tp }); // ✅ fără helper
+      setTx(`Pending... ${txResp.hash}`);
+
       await txResp.wait();
       setTx("Confirmed ✅");
       await refresh();
     } catch (e) {
       setTx("");
-      setError(e?.shortMessage || e?.message || "buyTicket failed");
+      setError(normalizeTxError(e));
     }
   }
+
 
   async function withdrawPrize() {
     try {
       setError("");
-      setTx("Sending withdrawPrize...");
+      setTx("Preparing (estimating gas)...");
       const c = await getLottery(false);
 
-      const txResp = await c.withdrawPrize();
-      setTx("Pending...");
+      const { txResp, gasEstimate, estCostEth } = await estimateAndSend({
+        contract: c,
+        method: "withdrawPrize",
+      });
+
+      setTx(
+        `Gas ${gasEstimate.toString()} | Est fee ~ ${estCostEth} ETH | Pending... ${txResp.hash}`
+      );
       await txResp.wait();
+
       setTx("Confirmed ✅");
       await refresh();
     } catch (e) {
       setTx("");
-      setError(e?.shortMessage || e?.message || "withdrawPrize failed");
+      setError(normalizeTxError(e));
     }
   }
 
   useEffect(() => {
     refresh();
-    const id = setInterval(refresh, 3000);
+
+    // 10s e mult mai safe pentru Infura free tier
+    const id = setInterval(refresh, 10_000);
+
     return () => clearInterval(id);
   }, []);
 
