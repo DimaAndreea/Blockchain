@@ -1,11 +1,15 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
+import "./LotteryMath.sol";
+
 interface IRandomnessProvider {
     function requestRandom(uint256 requestId) external;
 }
 
 contract Lottery {
+    using LotteryMath for uint256;
+
     enum State { OPEN, DRAWING, PAID }
 
     address public owner;
@@ -21,6 +25,9 @@ contract Lottery {
     uint256 public requestId;
 
     mapping(address => uint256) public ticketsByAddress;
+
+    // ✅ Withdrawal Pattern: "pull payments"
+    mapping(address => uint256) public pendingWithdrawals;
 
     event TicketBought(address indexed buyer, uint256 amount, uint256 totalPlayers, uint256 pot);
     event ProviderSet(address indexed provider);
@@ -80,11 +87,6 @@ contract Lottery {
         return address(this).balance;
     }
 
-    function calcWinnerIndex(uint256 randomWord, uint256 nPlayers) public pure returns (uint256) {
-        if (nPlayers == 0) return 0;
-        return randomWord % nPlayers;
-    }
-
     function requestDraw() external onlyOwner inState(State.OPEN) {
         if (players.length == 0) revert NoPlayers();
         if (randomnessProvider == address(0)) revert ProviderNotSet();
@@ -100,22 +102,30 @@ contract Lottery {
 
     // IMPORTANT: randomness can ONLY come from provider (prevents manipulation)
     function fulfillRandom(uint256 randomWord) external onlyProvider inState(State.DRAWING) {
-        uint256 idx = calcWinnerIndex(randomWord, players.length);
+        uint256 idx = randomWord.winnerIndex(players.length);
         address winner = players[idx];
 
+        uint256 prize = address(this).balance;
+
         lastWinner = winner;
-        lastPrize = address(this).balance;
+        lastPrize = prize;
+
+        // ✅ Withdrawal Pattern: store credit, winner withdraws later
+        pendingWithdrawals[winner] += prize;
 
         state = State.PAID;
 
-        emit WinnerSelected(winner, lastPrize, randomWord);
+        emit WinnerSelected(winner, prize, randomWord);
     }
 
     function withdrawPrize() external inState(State.PAID) {
         if (msg.sender != lastWinner) revert NotWinner();
-        uint256 amount = lastPrize;
+
+        uint256 amount = pendingWithdrawals[msg.sender];
         if (amount == 0) revert NothingToWithdraw();
 
+        // ✅ effects before interaction
+        pendingWithdrawals[msg.sender] = 0;
         lastPrize = 0;
 
         (bool ok, ) = payable(msg.sender).call{value: amount}("");
@@ -124,6 +134,7 @@ contract Lottery {
         emit PrizeWithdrawn(msg.sender, amount);
 
         delete players;
+        lastWinner = address(0);
         state = State.OPEN;
     }
 

@@ -1,5 +1,6 @@
 import { ethers } from "ethers";
 import lotteryArtifact from "../abi/Lottery.json";
+import providerArtifact from "../abi/RandomnessProvider.json";
 import addresses from "../contracts/addresses.json";
 
 export function hasMetaMask() {
@@ -30,4 +31,26 @@ export async function getLottery(readOnly = false) {
   }
   const signer = await provider.getSigner();
   return new ethers.Contract(addresses.Lottery, lotteryArtifact.abi, signer);
+}
+
+export async function getRandomnessProvider(readOnly = false) {
+  const provider = getBrowserProvider();
+  if (!addresses.RandomnessProvider) {
+    throw new Error("RandomnessProvider address missing in addresses.json");
+  }
+  if (readOnly) {
+    return new ethers.Contract(addresses.RandomnessProvider, providerArtifact.abi, provider);
+  }
+  const signer = await provider.getSigner();
+  return new ethers.Contract(addresses.RandomnessProvider, providerArtifact.abi, signer);
+}
+
+/**
+ * Generates a demo randomWord locally.
+ * (Not secure, but perfect for local VRF simulation / demo.)
+ */
+export function makeDemoRandomWord() {
+  // ethers.randomBytes -> cryptographically strong randomness in browser
+  const bytes = ethers.randomBytes(32);
+  return ethers.toBigInt(ethers.hexlify(bytes));
 }
