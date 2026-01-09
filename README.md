@@ -2,9 +2,7 @@
 
 ## Chainlink VRF:
 
-`
 https://vrf.chain.link/
-`
 
 - te conectezi cu metamask, cu contul de pe care vrei sa dai deploy, NU local, ci unul de sepolia
 
@@ -14,15 +12,12 @@ https://vrf.chain.link/
 
 - dupa ce s a creat, trebuie sa dai fund subscription.
 
-- *in caz ca nu ai bani, probabil nu ai. intra pe: https://faucets.chain.link/sepolia si iei de acolo. sa ai grija sa fii conectata pe contul de pe care vrei sa dai deploy - (https://sepolia.etherscan.io/tx/0x1b2e78bf48d4487a0969b2687d46cb83462242865bca79be4dd94081eb7428ba) hash ul meu
+- *in caz ca nu ai bani (probabil nu ai), intra pe: https://faucets.chain.link/sepolia si iei de acolo. sa ai grija sa fii conectata pe contul de pe care vrei sa dai deploy - (https://sepolia.etherscan.io/tx/0x1b2e78bf48d4487a0969b2687d46cb83462242865bca79be4dd94081eb7428ba) hash ul meu
 
-- ... TBD
 
 ## Infura:
 
-`
 https://developer.metamask.io/
-`
 
 - avem deja un api key de la lab2, deci il folosim pe acelasi.
 
@@ -37,14 +32,22 @@ https://developer.metamask.io/
 asadar, recapitulare:
 fisierul hardhat//env trebuie sa arate asa:
 
-`
+```
 SEPOLIA_RPC_URL=https://sepolia.infura.io/v3/pui_api_key_de_pe_infura
 SEPOLIA_PRIVATE_KEY=cheia_privata_a_contului_de_pe_care_dai_deploy
 
 SEPOLIA_SUBSCRIPTION_ID=dupa_ce_dai_create_subscription_o_sa_iti_apara_acest_id_pe_chainlink_vrf
 SEPOLIA_VRF_COORDINATOR=din_pagina_principala_de_chainlink_vrf
 SEPOLIA_VRF_KEYHASH=din_pagina_principala_de_chainlink_vrf             
-`
+```
+
+- din hardhat rulezi:
+
+```
+npx hardhat run scripts/deploy-sepolia.ts --network sepolia
+```
+
+ar trebui sa ti mearga, sa ti apara niste valori. copiezi adresa de la "Lottery deployed at:" si te intorci pe Chainlink VRF, ca sa dai add consumer la acel subscription creat. - hash ul meu: https://sepolia.etherscan.io/tx/0xde480ebe0b41a8f4f29837a531c397108f059985aba9e819218fc789dc2eb33d
 
 ---
 
