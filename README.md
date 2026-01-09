@@ -1,6 +1,42 @@
 # PT SANZIANA (CITESTE !!!!!!)
 
-pasii pt a rula proiectul:
+## Chainlink VRF:
+
+`
+https://vrf.chain.link/
+`
+
+- te conectezi cu metamask, cu contul de pe care vrei sa dai deploy, NU local, ci unul de sepolia
+
+- da create subscription
+
+- completezi nume + mail optional - (https://sepolia.etherscan.io/tx/0xca3143117918098badb093d79f74f4615190673a4805a013faba34d39ebe06b1) - hash ul meu dupa ce am creat subscription ul
+
+- dupa ce s a creat, trebuie sa dai fund subscription.
+
+- *in caz ca nu ai bani, probabil nu ai. intra pe: https://faucets.chain.link/sepolia si iei de acolo. sa ai grija sa fii conectata pe contul de pe care vrei sa dai deploy - (https://sepolia.etherscan.io/tx/0x1b2e78bf48d4487a0969b2687d46cb83462242865bca79be4dd94081eb7428ba) hash ul meu
+
+- ... TBD
+
+## Infura:
+
+`
+https://developer.metamask.io/
+`
+
+- avem deja un api key de la lab2, deci il folosim pe acelasi.
+
+- dupa ce te conectezi pe infura (probabil cu metamask, depinde cu ce te ai conectat), o sa ti apara direct acolo my first key pe care o copiezi
+
+- in /hardhat/.env pui ce ai tu.
+
+  SEPOLIA_RPC_URL=https://sepolia.infura.io/v3/da_paste_la_cheia_copiata_de_pe_infura
+
+---
+
+# OUTDATED
+
+pasii pt a rula proiectul: 
 
 1. intr un terminal, du te in loterie-vrf/hardhat si ruleaza:
 
