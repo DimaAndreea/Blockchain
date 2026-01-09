@@ -32,6 +32,20 @@ https://developer.metamask.io/
 
   SEPOLIA_RPC_URL=https://sepolia.infura.io/v3/da_paste_la_cheia_copiata_de_pe_infura
 
+
+
+asadar, recapitulare:
+fisierul hardhat//env trebuie sa arate asa:
+
+`
+SEPOLIA_RPC_URL=https://sepolia.infura.io/v3/pui_api_key_de_pe_infura
+SEPOLIA_PRIVATE_KEY=cheia_privata_a_contului_de_pe_care_dai_deploy
+
+SEPOLIA_SUBSCRIPTION_ID=dupa_ce_dai_create_subscription_o_sa_iti_apara_acest_id_pe_chainlink_vrf
+SEPOLIA_VRF_COORDINATOR=din_pagina_principala_de_chainlink_vrf
+SEPOLIA_VRF_KEYHASH=din_pagina_principala_de_chainlink_vrf             
+`
+
 ---
 
 # OUTDATED
