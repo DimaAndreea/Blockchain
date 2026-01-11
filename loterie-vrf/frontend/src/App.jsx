@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ethers } from "ethers";
-import { getInjectedProvider, getReadContract, getWriteContract, getEventsContract } from "./eth";
+import { getInjectedProvider, getReadContract, getWriteContract } from "./eth";
 import { CHAIN_NAME, EXPECTED_CHAIN_ID } from "./config";
 import "./App.css";
 
@@ -17,6 +17,20 @@ function fmtEth(wei) {
   } catch {
     return "0";
   }
+}
+
+function isRateLimitErr(e) {
+  const msg = String(e?.shortMessage || e?.reason || e?.message || "").toLowerCase();
+  const code = e?.code;
+  const status = e?.info?.error?.code || e?.status || e?.info?.status;
+  return (
+    code === -32005 ||
+    status === 429 ||
+    msg.includes("too many requests") ||
+    msg.includes("rate limit") ||
+    msg.includes("missing response for request") ||
+    msg.includes("could not coalesce")
+  );
 }
 
 export default function App() {
@@ -53,7 +67,7 @@ export default function App() {
     return account.toLowerCase() === lastWinner.toLowerCase();
   }, [account, lastWinner]);
 
-  // countdown local
+  // countdown
   const [nowSec, setNowSec] = useState(() => BigInt(Math.floor(Date.now() / 1000)));
   useEffect(() => {
     const t = setInterval(() => setNowSec(BigInt(Math.floor(Date.now() / 1000))), 1000);
@@ -62,7 +76,7 @@ export default function App() {
 
   const nextDrawAt = useMemo(() => {
     try {
-      return (lastTimeStamp ?? 0n) + (intervalSec ?? 0n);
+      return lastTimeStamp + intervalSec;
     } catch {
       return 0n;
     }
@@ -70,31 +84,41 @@ export default function App() {
 
   const timeLeft = useMemo(() => {
     if (state !== 0) return 0n;
-    if (!nextDrawAt) return 0n;
+    if (nextDrawAt === 0n) return 0n;
     if (nowSec >= nextDrawAt) return 0n;
     return nextDrawAt - nowSec;
   }, [state, nextDrawAt, nowSec]);
 
   function pushEvent(label, payload) {
-    setEvents((prev) => [{ t: Date.now(), label, payload }, ...prev].slice(0, 10));
+    setEvents((prev) => {
+      const next = [{ t: Date.now(), label, payload }, ...prev];
+      return next.slice(0, 10);
+    });
   }
 
-  // --- refresh debounce + lock (ANTI SPAM)
-  const refreshTimer = useRef(null);
-  const refreshing = useRef(false);
+  // --- refresh anti-spam + backoff
+  const refreshInFlight = useRef(false);
+  const backoffUntilMs = useRef(0);
+  const lastRefreshMs = useRef(0);
 
-  function scheduleRefresh(ms = 600) {
-    if (refreshTimer.current) clearTimeout(refreshTimer.current);
-    refreshTimer.current = setTimeout(() => refresh(), ms);
-  }
+  async function refresh({ force = false } = {}) {
+    if (!force) {
+      // nu mai des de 800ms, ca să nu spamăm
+      if (Date.now() - lastRefreshMs.current < 800) return;
+    }
 
-  async function refresh() {
-    if (refreshing.current) return;
-    refreshing.current = true;
+    if (Date.now() < backoffUntilMs.current) return;
+    if (refreshInFlight.current) return;
+
+    refreshInFlight.current = true;
+    lastRefreshMs.current = Date.now();
 
     try {
       const c = getReadContract();
-      if (!c) return;
+      if (!c) {
+        setStatus("MetaMask indisponibil");
+        return;
+      }
 
       const [tp, intv, lts, p, pc, st, lw, lp, lr] = await Promise.all([
         c.ticketPrice(),
@@ -115,7 +139,8 @@ export default function App() {
       setPot(p ?? 0n);
       setPlayers(pc ?? 0n);
 
-      setState(Number(st ?? 0));
+      const stNum = Number(st ?? 0);
+      setState(stNum);
       setLastWinner(lw ?? null);
       setLastPrize(lp ?? 0n);
       setLastRequestId(lr ?? 0n);
@@ -128,20 +153,37 @@ export default function App() {
       }
     } catch (e) {
       console.error(e);
-      const msg = e?.shortMessage || e?.reason || e?.message || "Refresh failed";
-
-      // Mesaj mai “uman” pentru rate limit
-      if (String(msg).toLowerCase().includes("too many") || String(msg).includes("429")) {
-        setStatus("Rate limit (Infura). Așteaptă 10-20s și încearcă din nou.");
-      } else if (String(msg).toLowerCase().includes("rate limited")) {
-        setStatus("Rate limit (MetaMask RPC). Așteaptă puțin și încearcă din nou.");
+      if (isRateLimitErr(e)) {
+        setStatus("Rate limited (429). Pauză 10–15s…");
+        backoffUntilMs.current = Date.now() + 12_000;
       } else {
-        setStatus(msg);
+        setStatus(e?.shortMessage || e?.reason || e?.message || "Refresh failed");
       }
     } finally {
-      refreshing.current = false;
+      refreshInFlight.current = false;
     }
   }
+
+  // ✅ AUTO-REFRESH (fără WS)
+  // - normal: la 4s
+  // - CALCULATING: la 1.5s (ca să vezi când vine VRF)
+  useEffect(() => {
+    if (!account || wrongNetwork) return;
+
+    const base = 4000;
+    const fast = 1500;
+
+    const tick = async () => {
+      await refresh();
+    };
+
+    // imediat un refresh când pornește polling-ul
+    tick();
+
+    const id = setInterval(tick, state === 1 ? fast : base);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [account, wrongNetwork, state]);
 
   async function connect() {
     setStatus("");
@@ -160,9 +202,9 @@ export default function App() {
 
       setAccount(addr);
       setChainId(`0x${net.chainId.toString(16)}`);
-
       setStatus("Conectat ✅");
-      scheduleRefresh(200);
+
+      await refresh({ force: true });
     } catch (e) {
       console.error(e);
       setStatus(e?.shortMessage || e?.message || "Connect a eșuat");
@@ -177,18 +219,20 @@ export default function App() {
       setLoading(true);
       const c = await getWriteContract();
       if (!c) throw new Error("MetaMask indisponibil");
-      if (wrongNetwork) throw new Error(`Schimbă pe ${CHAIN_NAME} (${EXPECTED_CHAIN_ID})`);
 
       const tx = await c.buyTicket({ value: ticketPrice });
+      pushEvent("TxSent", { type: "buyTicket", hash: tx.hash });
       setStatus("buyTicket trimis…");
-      await tx.wait();
 
+      await tx.wait();
+      pushEvent("TxMined", { type: "buyTicket", hash: tx.hash });
       setStatus("Bilet cumpărat 🎟️");
-      scheduleRefresh(300);
+
+      await refresh({ force: true });
     } catch (e) {
       console.error(e);
-      const msg = e?.shortMessage || e?.reason || e?.message || "Buy failed";
-      setStatus(msg);
+      if (isRateLimitErr(e)) setStatus("Rate limited (429). Așteaptă 10–20s.");
+      else setStatus(e?.shortMessage || e?.reason || e?.message || "Buy failed");
     } finally {
       setLoading(false);
     }
@@ -200,18 +244,20 @@ export default function App() {
       setLoading(true);
       const c = await getWriteContract();
       if (!c) throw new Error("MetaMask indisponibil");
-      if (wrongNetwork) throw new Error(`Schimbă pe ${CHAIN_NAME} (${EXPECTED_CHAIN_ID})`);
 
       const tx = await c.performUpkeep("0x");
-      setStatus("performUpkeep trimis… (așteptăm VRF)");
-      await tx.wait();
+      pushEvent("TxSent", { type: "performUpkeep", hash: tx.hash });
+      setStatus("performUpkeep trimis…");
 
-      setStatus("performUpkeep confirmat ✅");
-      scheduleRefresh(500);
+      await tx.wait();
+      pushEvent("TxMined", { type: "performUpkeep", hash: tx.hash });
+      setStatus("Upkeep confirmat ✅ (așteptăm VRF)");
+
+      await refresh({ force: true });
     } catch (e) {
       console.error(e);
-      const msg = e?.shortMessage || e?.reason || e?.message || "Upkeep failed";
-      setStatus(msg);
+      if (isRateLimitErr(e)) setStatus("Rate limited (429). Așteaptă 10–20s.");
+      else setStatus(e?.shortMessage || e?.reason || e?.message || "Upkeep failed");
     } finally {
       setLoading(false);
     }
@@ -223,24 +269,26 @@ export default function App() {
       setLoading(true);
       const c = await getWriteContract();
       if (!c) throw new Error("MetaMask indisponibil");
-      if (wrongNetwork) throw new Error(`Schimbă pe ${CHAIN_NAME} (${EXPECTED_CHAIN_ID})`);
 
       const tx = await c.withdrawPrize();
+      pushEvent("TxSent", { type: "withdrawPrize", hash: tx.hash });
       setStatus("withdrawPrize trimis…");
-      await tx.wait();
 
+      await tx.wait();
+      pushEvent("TxMined", { type: "withdrawPrize", hash: tx.hash });
       setStatus("Premiu retras 💸");
-      scheduleRefresh(500);
+
+      await refresh({ force: true });
     } catch (e) {
       console.error(e);
-      const msg = e?.shortMessage || e?.reason || e?.message || "Withdraw failed";
-      setStatus(msg);
+      if (isRateLimitErr(e)) setStatus("Rate limited (429). Așteaptă 10–20s.");
+      else setStatus(e?.shortMessage || e?.reason || e?.message || "Withdraw failed");
     } finally {
       setLoading(false);
     }
   }
 
-  // init + MM listeners
+  // init + listeners
   useEffect(() => {
     const provider = getInjectedProvider();
     if (!provider) {
@@ -254,12 +302,12 @@ export default function App() {
       try {
         const accounts = await provider.send("eth_accounts", []);
         const net = await provider.getNetwork();
-
         if (!mounted) return;
+
         setChainId(`0x${net.chainId.toString(16)}`);
         if (accounts?.length) setAccount(accounts[0]);
 
-        scheduleRefresh(200);
+        await refresh({ force: true });
       } catch (e) {
         console.error(e);
       }
@@ -268,13 +316,13 @@ export default function App() {
     const onAccounts = (accs) => {
       setAccount(accs?.[0] || null);
       setStatus(accs?.length ? "Cont schimbat" : "Deconectat");
-      scheduleRefresh(300);
+      refresh({ force: true });
     };
 
     const onChain = (cid) => {
       setChainId(cid);
       setStatus("Network schimbat");
-      scheduleRefresh(300);
+      refresh({ force: true });
     };
 
     window.ethereum.on?.("accountsChanged", onAccounts);
@@ -288,71 +336,11 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // WS events (nu face refresh agresiv)
-  useEffect(() => {
-    const c = getEventsContract();
-    if (!c) {
-      setStatus((s) => s || "WS indisponibil (verifică RPC_WS)");
-      return;
-    }
-
-    setStatus((s) => (s ? s : "WS conectat ✅"));
-
-    const onTicketBought = (buyer, amount, totalPlayers, potNow) => {
-      pushEvent("TicketBought", {
-        buyer,
-        amount: amount?.toString?.(),
-        totalPlayers: totalPlayers?.toString?.(),
-        pot: potNow?.toString?.(),
-      });
-      // refresh “light”, nu imediat de fiecare dată
-      scheduleRefresh(1200);
-    };
-
-    const onRandomnessRequested = (requestId) => {
-      pushEvent("RandomnessRequested", { requestId: requestId?.toString?.() });
-      scheduleRefresh(1200);
-    };
-
-    const onWinnerSelected = (winner, prize, randomWord) => {
-      pushEvent("WinnerSelected", {
-        winner,
-        prize: prize?.toString?.(),
-        randomWord: randomWord?.toString?.(),
-      });
-      scheduleRefresh(1500);
-    };
-
-    const onPrizeWithdrawn = (winner, amount) => {
-      pushEvent("PrizeWithdrawn", { winner, amount: amount?.toString?.() });
-      scheduleRefresh(1500);
-    };
-
-    c.on("TicketBought", onTicketBought);
-    c.on("RandomnessRequested", onRandomnessRequested);
-    c.on("WinnerSelected", onWinnerSelected);
-    c.on("PrizeWithdrawn", onPrizeWithdrawn);
-
-    return () => {
-      c.off("TicketBought", onTicketBought);
-      c.off("RandomnessRequested", onRandomnessRequested);
-      c.off("WinnerSelected", onWinnerSelected);
-      c.off("PrizeWithdrawn", onPrizeWithdrawn);
-    };
-  }, []);
-
   const stateLabel = StateLabel[state] || `UNKNOWN(${state})`;
 
   const canBuy = account && !wrongNetwork && !loading && state === 0;
   const canUpkeep =
-    account &&
-    !wrongNetwork &&
-    !loading &&
-    state === 0 &&
-    timeLeft === 0n &&
-    players > 0n &&
-    pot > 0n;
-
+    account && !wrongNetwork && !loading && state === 0 && timeLeft === 0n && players > 0n && pot > 0n;
   const canWithdraw = account && !wrongNetwork && !loading && state === 2 && isWinner && lastPrize > 0n;
 
   return (
@@ -361,8 +349,7 @@ export default function App() {
         <div>
           <div className="title">🎲 Lottery (VRF + Automation)</div>
           <div className="subtitle">
-            {account ? `Wallet: ${shortAddr(account)}` : "Wallet: —"} •{" "}
-            {chainId ? `Chain: ${chainId}` : "Chain: —"}
+            {account ? `Wallet: ${shortAddr(account)}` : "Wallet: —"} • {chainId ? `Chain: ${chainId}` : "Chain: —"}
           </div>
         </div>
 
@@ -370,7 +357,7 @@ export default function App() {
           {!hasMM && <div className="pill danger">Instalează MetaMask</div>}
 
           {account ? (
-            <button className="btn" onClick={() => scheduleRefresh(0)} disabled={loading}>
+            <button className="btn" onClick={() => refresh({ force: true })} disabled={loading}>
               🔄 Refresh
             </button>
           ) : (
@@ -414,9 +401,10 @@ export default function App() {
               <span>My tickets</span>
               <b>{myTickets.toString()}</b>
             </div>
+
             <div className="row">
               <span>Interval</span>
-              <b>{(intervalSec ?? 0n).toString()} sec</b>
+              <b>{intervalSec.toString()} sec</b>
             </div>
             <div className="row">
               <span>Time left</span>
@@ -462,7 +450,8 @@ export default function App() {
           </div>
 
           <div className="hint">
-            Dacă state = <b>CALCULATING</b>, aștepți callback-ul VRF. Dacă state = <b>PAID</b>, doar winner poate da withdraw.
+            Dacă state = <b>CALCULATING</b>, aștepți callback-ul VRF.
+            Dacă state = <b>PAID</b>, doar winner poate da withdraw.
           </div>
         </section>
 
