@@ -1,4 +1,5 @@
 import { ethers } from "ethers";
+import LotteryLogo from "./LotteryLogo";
 
 function fmtEth(wei) {
   try {
@@ -20,35 +21,43 @@ export default function Landing({
   return (
     <div className="landing">
       <div className="landingInner">
-        <div className="brand">LemuMaster's Lottery</div>
+        {/* 🔥 MARQUEE FRAME */}
+        <div className="marqueeFrame">
+          <div className="bulbRing" aria-hidden="true" />
 
-        {!hasMM && (
-          <div className="landingWarn">
-            Install MetaMask to continue.
+          <LotteryLogo size={160} />
+
+          <div className="brand">
+            LemuMaster&apos;s Lottery
           </div>
-        )}
 
-        {wrongNetwork && (
-          <div className="landingWarn">
-            Wrong network. Switch to <b>{chainName}</b> ({expectedChainId})
+          {!hasMM && (
+            <div className="landingWarn">
+              Install MetaMask to continue.
+            </div>
+          )}
+
+          {wrongNetwork && (
+            <div className="landingWarn">
+              Wrong network. Switch to <b>{chainName}</b> ({expectedChainId})
+            </div>
+          )}
+
+          {status && <div className="landingStatus">{status}</div>}
+
+          <button
+            className="cta"
+            onClick={onConnect}
+            disabled={loading || !hasMM}
+          >
+            {loading ? "Connecting..." : "Connect Wallet to Win!"}
+          </button>
+
+          <div className="landingFoot">
+            Chainlink VRF • Chainlink Automation
           </div>
-        )}
-
-        {status && <div className="landingStatus">{status}</div>}
-
-        <button
-          className="cta"
-          onClick={onConnect}
-          disabled={loading || !hasMM}
-        >
-          {loading ? "Connecting..." : "Connect Wallet to Win!"}
-        </button>
-
-        <div className="landingFoot">
-          Chainlink VRF • Chainlink Automation
         </div>
       </div>
     </div>
   );
 }
-

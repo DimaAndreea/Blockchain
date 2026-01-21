@@ -70,7 +70,6 @@ export default function App() {
   }, [lastTimeStamp, intervalSec]);
 
   const timeLeft = useMemo(() => {
-    // timerul contează doar când runda e OPEN și a pornit
     if (state !== 0) return 0n;
     if (lastTimeStamp === 0n) return 0n;
     if (nextDrawAt === 0n) return 0n;
@@ -81,13 +80,16 @@ export default function App() {
   const roundStarted = useMemo(() => players > 0n && lastTimeStamp > 0n, [players, lastTimeStamp]);
 
   const roundPhaseText = useMemo(() => {
-    if (state === 1) return "⏳ Runda s-a încheiat. Se extrage câștigătorul (Automation + VRF)…";
-    if (state === 2) return "🏆 Câștigător extras. Winner poate retrage premiul.";
-    // OPEN
-    if (!roundStarted) return "🟢 Runda nu a început încă. Cumpără primul bilet ca să pornești timer-ul.";
-    if (timeLeft > 0n) return `🎟️ Rundă deschisă: mai poți cumpăra bilete încă ${timeLeft.toString()} sec.`;
-    return "⛔ Runda s-a încheiat. Așteptăm extragerea automată (Automation + VRF)…";
-  }, [state, roundStarted, timeLeft]);
+    // state: 0 OPEN, 1 CALCULATING, 2 PAID
+    if (state === 1) return "Drawing a random winner using Chainlink VRF. Please wait.";
+    if (state === 2) {
+      if (isWinner && lastPrize > 0n) return "You won. Claim your prize to withdraw your reward.";
+      return "Winner selected. The winner can now claim the prize.";
+    }
+    if (!roundStarted) return "Round not started yet. Buy the first ticket to start the countdown.";
+    if (timeLeft > 0n) return "Tickets are on sale. Countdown is running.";
+    return "Ticket sales are closed. The draw will start automatically shortly.";
+  }, [state, roundStarted, timeLeft, isWinner, lastPrize]);
 
   function pushEvent(label, payload) {
     setEvents((prev) => {
@@ -114,7 +116,7 @@ export default function App() {
     try {
       const c = getReadContract();
       if (!c) {
-        setStatus("MetaMask indisponibil");
+        setStatus("MetaMask is unavailable.");
         return;
       }
 
@@ -152,7 +154,7 @@ export default function App() {
     } catch (e) {
       console.error(e);
       if (isRateLimitErr(e)) {
-        setStatus("Rate limited (429). Pauză 10–15s…");
+        setStatus("Rate limited (429). Pausing for 10–15 seconds.");
         backoffUntilMs.current = Date.now() + 12_000;
       } else {
         setStatus(e?.shortMessage || e?.reason || e?.message || "Refresh failed");
@@ -174,7 +176,6 @@ export default function App() {
     };
 
     tick();
-
     const id = setInterval(tick, state === 1 ? fast : base);
     return () => clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -197,15 +198,23 @@ export default function App() {
 
       setAccount(addr);
       setChainId(`0x${net.chainId.toString(16)}`);
-      setStatus("Conectat ✅");
+      setStatus("Connected.");
 
       await refresh({ force: true });
     } catch (e) {
       console.error(e);
-      setStatus(e?.shortMessage || e?.message || "Connect a eșuat");
+      setStatus(e?.shortMessage || e?.message || "Connect failed");
     } finally {
       setLoading(false);
     }
+  }
+
+  function logout() {
+    // MetaMask nu “deconectează” programatic contul; noi doar resetăm UI state.
+    setAccount(null);
+    setStatus("Disconnected.");
+    setEvents([]);
+    setMyTickets(0n);
   }
 
   async function buyTicket() {
@@ -213,20 +222,19 @@ export default function App() {
     try {
       setLoading(true);
       const c = await getWriteContract();
-      if (!c) throw new Error("MetaMask indisponibil");
+      if (!c) throw new Error("MetaMask is unavailable.");
 
       const tx = await c.buyTicket({ value: ticketPrice });
       pushEvent("TxSent", { type: "buyTicket", hash: tx.hash });
-      setStatus("buyTicket trimis…");
+      setStatus("Transaction sent: buyTicket.");
 
       await tx.wait();
       pushEvent("TxMined", { type: "buyTicket", hash: tx.hash });
-      setStatus("Bilet cumpărat 🎟️");
-
+      setStatus("Ticket purchased.");
       await refresh({ force: true });
     } catch (e) {
       console.error(e);
-      if (isRateLimitErr(e)) setStatus("Rate limited (429). Așteaptă 10–20s.");
+      if (isRateLimitErr(e)) setStatus("Rate limited (429). Please wait 10–20 seconds.");
       else setStatus(e?.shortMessage || e?.reason || e?.message || "Buy failed");
     } finally {
       setLoading(false);
@@ -238,27 +246,26 @@ export default function App() {
     try {
       setLoading(true);
       const c = await getWriteContract();
-      if (!c) throw new Error("MetaMask indisponibil");
+      if (!c) throw new Error("MetaMask is unavailable.");
 
       const tx = await c.withdrawPrize();
       pushEvent("TxSent", { type: "withdrawPrize", hash: tx.hash });
-      setStatus("withdrawPrize trimis…");
+      setStatus("Transaction sent: withdrawPrize.");
 
       await tx.wait();
       pushEvent("TxMined", { type: "withdrawPrize", hash: tx.hash });
-      setStatus("Premiu retras 💸. Runda s-a resetat.");
-
+      setStatus("Prize withdrawn. The round has been reset.");
       await refresh({ force: true });
     } catch (e) {
       console.error(e);
-      if (isRateLimitErr(e)) setStatus("Rate limited (429). Așteaptă 10–20s.");
+      if (isRateLimitErr(e)) setStatus("Rate limited (429). Please wait 10–20 seconds.");
       else setStatus(e?.shortMessage || e?.reason || e?.message || "Withdraw failed");
     } finally {
       setLoading(false);
     }
   }
 
-  // init + listeners (NU setăm account automat; conectarea se face prin buton)
+  // init + listeners
   useEffect(() => {
     const provider = getInjectedProvider();
     if (!provider) {
@@ -280,13 +287,13 @@ export default function App() {
 
     const onAccounts = (accs) => {
       setAccount(accs?.[0] || null);
-      setStatus(accs?.length ? "Cont schimbat" : "Deconectat");
+      setStatus(accs?.length ? "Account changed." : "Disconnected.");
       refresh({ force: true });
     };
 
     const onChain = (cid) => {
       setChainId(cid);
-      setStatus("Network schimbat");
+      setStatus("Network changed.");
       refresh({ force: true });
     };
 
@@ -301,16 +308,9 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ✅ Buy allowed:
-  // - dacă runda NU a început: permitem primul bilet
-  // - dacă runda a început: permitem bilete doar cât timp timeLeft > 0
-  const canBuy =
-    account && !wrongNetwork && !loading && state === 0 && (!roundStarted || timeLeft > 0n);
+  const canBuy = account && !wrongNetwork && !loading && state === 0 && (!roundStarted || timeLeft > 0n);
+  const canWithdraw = account && !wrongNetwork && !loading && state === 2 && isWinner && lastPrize > 0n;
 
-  const canWithdraw =
-    account && !wrongNetwork && !loading && state === 2 && isWinner && lastPrize > 0n;
-
-  // 🔥 Landing + Dashboard
   if (!account) {
     return (
       <Landing
@@ -351,9 +351,9 @@ export default function App() {
       loading={loading}
       canBuy={canBuy}
       canWithdraw={canWithdraw}
-      onRefresh={() => refresh({ force: true })}
       onBuy={buyTicket}
       onWithdraw={withdraw}
+      onLogout={logout}
       events={events}
     />
   );

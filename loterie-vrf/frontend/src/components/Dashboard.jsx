@@ -1,6 +1,128 @@
+import { useMemo } from "react";
 import { ethers } from "ethers";
 
-const StateLabel = { 0: "OPEN", 1: "CALCULATING", 2: "PAID" };
+function Icon({ name, className = "icon", size = 18 }) {
+  const common = {
+    className,
+    width: size,
+    height: size,
+    viewBox: "0 0 24 24",
+    fill: "none",
+    xmlns: "http://www.w3.org/2000/svg",
+    "aria-hidden": true,
+  };
+
+  switch (name) {
+    case "wallet":
+      return (
+        <svg {...common}>
+          <path
+            d="M3 7a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v2H5a2 2 0 0 0-2 2v4a2 2 0 0 0 2 2h16v-2"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinejoin="round"
+          />
+          <path
+            d="M19 13h2v4h-2a2 2 0 0 1 0-4Z"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinejoin="round"
+          />
+        </svg>
+      );
+
+    case "clock":
+      return (
+        <svg {...common}>
+          <path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z" stroke="currentColor" strokeWidth="2" />
+          <path d="M12 7v5l3 2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      );
+
+    case "trophy":
+      return (
+        <svg {...common}>
+          <path d="M8 4h8v3a4 4 0 0 1-8 0V4Z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
+          <path d="M6 7H4a2 2 0 0 0 2 2h1" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+          <path d="M18 7h2a2 2 0 0 1-2 2h-1" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+          <path d="M12 11v4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+          <path d="M10 15h4v4h-4v-4Z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
+          <path d="M8 19h8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+        </svg>
+      );
+
+    case "cart":
+      return (
+        <svg {...common}>
+          <path
+            d="M6 6h15l-1.5 8.5H7.2L6 6Z"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinejoin="round"
+          />
+          <path
+            d="M6 6 5.3 3.8H3"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+          />
+          <path
+            d="M9 20a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z"
+            stroke="currentColor"
+            strokeWidth="2"
+          />
+          <path
+            d="M18 20a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z"
+            stroke="currentColor"
+            strokeWidth="2"
+          />
+        </svg>
+      );
+
+    case "logout":
+      return (
+        <svg {...common}>
+          <path
+            d="M10 7V6a2 2 0 0 1 2-2h7v16h-7a2 2 0 0 1-2-2v-1"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinejoin="round"
+          />
+          <path
+            d="M3 12h10"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+          />
+          <path
+            d="M6 9l-3 3 3 3"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      );
+
+    case "cash":
+      return (
+        <svg {...common}>
+          <path d="M3 7h18v10H3V7Z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
+          <path d="M7 11a2 2 0 0 0 0 2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+          <path d="M17 11a2 2 0 0 1 0 2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+          <path
+            d="M12 10a2 2 0 1 1 0 4 2 2 0 0 1 0-4Z"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinejoin="round"
+          />
+        </svg>
+      );
+
+    default:
+      return null;
+  }
+}
 
 function shortAddr(a) {
   if (!a) return "—";
@@ -15,20 +137,30 @@ function fmtEth(wei) {
   }
 }
 
+function splitHMS(totalSec) {
+  const s = totalSec < 0n ? 0n : totalSec;
+  const h = s / 3600n;
+  const m = (s % 3600n) / 60n;
+  const sec = s % 60n;
+  return { h, m, sec };
+}
+
+function pad2(x) {
+  const n = Number(x ?? 0n);
+  return String(n).padStart(2, "0");
+}
+
 export default function Dashboard({
-  // header
   account,
   chainId,
   hasMM,
-
-  // banners
   wrongNetwork,
   chainName,
   expectedChainId,
+
   status,
   roundPhaseText,
 
-  // state
   state,
   ticketPrice,
   pot,
@@ -37,156 +169,217 @@ export default function Dashboard({
   intervalSec,
   timeLeft,
   roundStarted,
+
   lastRequestId,
   lastWinner,
   lastPrize,
   isWinner,
 
-  // actions
   loading,
   canBuy,
   canWithdraw,
-  onRefresh,
+
   onBuy,
   onWithdraw,
+  onLogout,
 
-  // events
   events,
 }) {
-  const stateLabel = StateLabel[state] || `UNKNOWN(${state})`;
+  const { h, m, sec } = useMemo(() => splitHMS(timeLeft), [timeLeft]);
+
+  const headerRight = useMemo(() => {
+    if (!chainId) return "—";
+    return chainId;
+  }, [chainId]);
+
+  const phaseLine = useMemo(() => {
+    // mic “status line” sub header, NU ticker bar
+    if (wrongNetwork) return `Wrong network. Switch to ${chainName} (${expectedChainId}).`;
+    if (!hasMM) return "MetaMask not detected. Please install MetaMask.";
+    if (status?.trim()) return status;
+    return roundPhaseText || "";
+  }, [wrongNetwork, chainName, expectedChainId, hasMM, status, roundPhaseText]);
 
   return (
     <div className="page">
-      <header className="header">
-        <div>
-          <div className="title">🎲 Lottery (VRF + Automation)</div>
-          <div className="subtitle">
-            {account ? `Wallet: ${shortAddr(account)}` : "Wallet: —"} •{" "}
-            {chainId ? `Chain: ${chainId}` : "Chain: —"}
+      {/* HEADER: left wallet, center title, right logout */}
+      <header className="appHeader">
+        <div className="hdrLeft">
+          <div className="walletBadge">
+            <Icon name="wallet" />
+            <div className="walletBadgeText">
+              <div className="walletBadgeTop">{shortAddr(account)}</div>
+              <div className="walletBadgeSub">Chain: {headerRight}</div>
+            </div>
           </div>
         </div>
 
-        <div className="walletBox">
-          {!hasMM && <div className="pill danger">Instalează MetaMask</div>}
+        <div className="hdrCenter">
+          <div className="appTitle">LemuMaster&apos;s Lottery</div>
+        </div>
 
-          <button className="btn" onClick={onRefresh} disabled={loading}>
-            🔄 Refresh
+        <div className="hdrRight">
+          <button className="btn ghost" onClick={onLogout} disabled={loading}>
+            <Icon name="logout" /> Logout
           </button>
         </div>
       </header>
 
-      {wrongNetwork && (
-        <div className="banner danger">
-          Ești pe rețeaua greșită. Comută pe <b>{chainName}</b> ({expectedChainId}).
-        </div>
-      )}
+      {/* small status line (no big bar) */}
+      {phaseLine?.trim() ? <div className={`statusLine ${wrongNetwork ? "danger" : ""}`}>{phaseLine}</div> : null}
 
-      {(status || roundPhaseText) && <div className="banner">{status || roundPhaseText}</div>}
-      {status && roundPhaseText && <div className="banner">{roundPhaseText}</div>}
-
-      <main className="grid">
-        <section className="card">
-          <div className="cardTitle">Status</div>
-
-          <div className="rows">
-            <div className="row">
-              <span>State</span>
-              <b className={`badge s${state}`}>{stateLabel}</b>
+      {/* MAIN */}
+      <main className="layout">
+        {/* HERO */}
+        <section className="card hero">
+          <div className="heroHeader heroHeaderCentered">
+            <div className="heroPot">
+                <div className="kicker">Prize pool</div>
+                <div className="heroValue">{fmtEth(pot)} ETH</div>
+            </div>
             </div>
 
-            <div className="row">
-              <span>Ticket price</span>
-              <b>{fmtEth(ticketPrice)} ETH</b>
-            </div>
 
-            <div className="row">
-              <span>Pot</span>
-              <b>{fmtEth(pot)} ETH</b>
+          <div className="heroCountdown">
+            <div className="countCell">
+              <div className="countNum">{pad2(h)}</div>
+              <div className="countCap">HOURS</div>
             </div>
+            <div className="countCell">
+              <div className="countNum">{pad2(m)}</div>
+              <div className="countCap">MINUTES</div>
+            </div>
+            <div className="countCell">
+              <div className="countNum">{pad2(sec)}</div>
+              <div className="countCap">SECONDS</div>
+            </div>
+          </div>
 
+          <div className="heroHint">
+            {!roundStarted ? (
+              <span className="accentHint">Start the round by buying the first ticket.</span>
+            ) : state === 1 ? (
+              <span className="accentHint">VRF is generating a verifiable random winner.</span>
+            ) : state === 2 ? (
+              <span className="accentHint">Round finished. Winner can withdraw the prize.</span>
+            ) : timeLeft > 0n ? (
+              <span className="accentHint">Tickets are open while the timer runs.</span>
+            ) : (
+              <span className="accentHint">Time is up. Waiting for automation + VRF.</span>
+            )}
+          </div>
+
+          <div className="heroMeta">
+            <span>
+              Interval: <b>{intervalSec.toString()}s</b>
+            </span>
+            <span className="dot">•</span>
+            <span>
+              Last request id: <b className="mono">{lastRequestId.toString()}</b>
+            </span>
+          </div>
+        </section>
+
+        {/* ACTIONS */}
+        <aside className="card actions">
+          <div className="actionsTop">
+            <div className="actionsTitle">Tickets</div>
+            <div className="actionsPrice">
+              Cost: <b>{fmtEth(ticketPrice)} ETH</b>
+            </div>
+          </div>
+
+          <div className="actionsBox">
             <div className="row">
-              <span>Players</span>
+              <span className="muted">Players</span>
               <b>{players.toString()}</b>
             </div>
-
             <div className="row">
-              <span>My tickets</span>
+              <span className="muted">My tickets</span>
               <b>{myTickets.toString()}</b>
             </div>
 
-            <div className="row">
-              <span>Interval</span>
-              <b>{intervalSec.toString()} sec</b>
+            <div className="btnStack">
+              <button className="btn primary" onClick={onBuy} disabled={!canBuy}>
+                <Icon name="cart" /> Buy ticket ({fmtEth(ticketPrice)} ETH)
+              </button>
+
+              <button className="btn" onClick={onWithdraw} disabled={!canWithdraw}>
+                <Icon name="cash" /> Withdraw prize
+              </button>
             </div>
 
-            <div className="row">
-              <span>Time left</span>
-              <b>
-                {state !== 0
-                  ? "—"
-                  : !roundStarted
-                  ? "— (runda începe la primul bilet)"
-                  : `${timeLeft.toString()} sec`}
-              </b>
+            <div className="actionsFoot">
+              {canWithdraw ? (
+                <span className="good">You are the winner. Withdrawal is available.</span>
+              ) : isWinner && lastPrize > 0n ? (
+                <span className="muted">You are the winner, but withdrawal isn’t available yet.</span>
+              ) : (
+                <span className="muted">The winner can withdraw once the draw is completed.</span>
+              )}
             </div>
           </div>
 
-          <div className="actions">
-            <button className="btn primary" onClick={onBuy} disabled={!canBuy}>
-              🎟️ Buy ticket
-            </button>
-
-            <button className="btn" onClick={onWithdraw} disabled={!canWithdraw}>
-              💸 Withdraw (winner)
-            </button>
-          </div>
-
-          <div className="small">
-            lastRequestId: <b>{lastRequestId.toString()}</b>
-          </div>
-        </section>
-
-        <section className="card">
-          <div className="cardTitle">Last round</div>
-
-          <div className="rows">
-            <div className="row">
-              <span>Last winner</span>
+          <div className="miniCard">
+            <div className="miniTitle">
+              <Icon name="trophy" /> Last round
+            </div>
+            <div className="miniRow">
+              <span className="muted">Winner</span>
               <b>{shortAddr(lastWinner)}</b>
             </div>
-            <div className="row">
-              <span>Last prize</span>
+            <div className="miniRow">
+              <span className="muted">Prize</span>
               <b>{fmtEth(lastPrize)} ETH</b>
             </div>
-            <div className="row">
-              <span>Winner = you?</span>
-              <b>{isWinner ? "YES ✅" : "NO"}</b>
+            <div className="miniRow">
+              <span className="muted">Winner (you)</span>
+              <b>{isWinner ? "YES" : "NO"}</b>
             </div>
           </div>
+        </aside>
 
-          <div className="hint">
-            Extragerea se face automat (Automation + VRF). Dacă state = <b>CALCULATING</b>, aștepți callback-ul VRF.
-            Dacă state = <b>PAID</b>, doar winner poate da withdraw.
+        {/* STATS */}
+        <section className="stats">
+          <div className="stat">
+            <div className="statLabel">Ticket price</div>
+            <div className="statValue">{fmtEth(ticketPrice)} ETH</div>
+          </div>
+          <div className="stat">
+            <div className="statLabel">Players</div>
+            <div className="statValue">{players.toString()}</div>
+          </div>
+          <div className="stat">
+            <div className="statLabel">My tickets</div>
+            <div className="statValue">{myTickets.toString()}</div>
+          </div>
+          <div className="stat">
+            <div className="statLabel">Last winner</div>
+            <div className="statValue mono">{shortAddr(lastWinner)}</div>
           </div>
         </section>
 
-        <section className="card">
-          <div className="cardTitle">Event feed</div>
+        {/* EVENT FEED */}
+        <section className="card feed">
+          <div className="feedHead">
+            <div className="panelTitle">Event feed</div>
+            <div className="muted small">Last 10 tx updates</div>
+          </div>
 
-          {events.length === 0 ? (
-            <div className="empty">Încă nu avem evenimente.</div>
-          ) : (
-            <div className="feed">
+          {events?.length ? (
+            <div className="feedList">
               {events.map((e) => (
                 <div className="event" key={e.t}>
                   <div className="eventTop">
                     <b>{e.label}</b>
-                    <span className="muted">{new Date(e.t).toLocaleTimeString()}</span>
+                    <span className="muted small">{new Date(e.t).toLocaleTimeString()}</span>
                   </div>
                   <pre className="pre">{JSON.stringify(e.payload, null, 2)}</pre>
                 </div>
               ))}
             </div>
+          ) : (
+            <div className="empty">No events yet.</div>
           )}
         </section>
       </main>
