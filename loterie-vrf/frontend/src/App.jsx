@@ -1,23 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ethers } from "ethers";
 import { getInjectedProvider, getReadContract, getWriteContract } from "./eth";
 import { CHAIN_NAME, EXPECTED_CHAIN_ID } from "./config";
 import "./App.css";
 
-const StateLabel = { 0: "OPEN", 1: "CALCULATING", 2: "PAID" };
-
-function shortAddr(a) {
-  if (!a) return "—";
-  return `${a.slice(0, 6)}…${a.slice(-4)}`;
-}
-
-function fmtEth(wei) {
-  try {
-    return ethers.formatEther(wei ?? 0n);
-  } catch {
-    return "0";
-  }
-}
+import Landing from "./components/Landing";
+import Dashboard from "./components/Dashboard";
 
 function isRateLimitErr(e) {
   const msg = String(e?.shortMessage || e?.reason || e?.message || "").toLowerCase();
@@ -83,11 +70,24 @@ export default function App() {
   }, [lastTimeStamp, intervalSec]);
 
   const timeLeft = useMemo(() => {
+    // timerul contează doar când runda e OPEN și a pornit
     if (state !== 0) return 0n;
+    if (lastTimeStamp === 0n) return 0n;
     if (nextDrawAt === 0n) return 0n;
     if (nowSec >= nextDrawAt) return 0n;
     return nextDrawAt - nowSec;
-  }, [state, nextDrawAt, nowSec]);
+  }, [state, lastTimeStamp, nextDrawAt, nowSec]);
+
+  const roundStarted = useMemo(() => players > 0n && lastTimeStamp > 0n, [players, lastTimeStamp]);
+
+  const roundPhaseText = useMemo(() => {
+    if (state === 1) return "⏳ Runda s-a încheiat. Se extrage câștigătorul (Automation + VRF)…";
+    if (state === 2) return "🏆 Câștigător extras. Winner poate retrage premiul.";
+    // OPEN
+    if (!roundStarted) return "🟢 Runda nu a început încă. Cumpără primul bilet ca să pornești timer-ul.";
+    if (timeLeft > 0n) return `🎟️ Rundă deschisă: mai poți cumpăra bilete încă ${timeLeft.toString()} sec.`;
+    return "⛔ Runda s-a încheiat. Așteptăm extragerea automată (Automation + VRF)…";
+  }, [state, roundStarted, timeLeft]);
 
   function pushEvent(label, payload) {
     setEvents((prev) => {
@@ -103,10 +103,8 @@ export default function App() {
 
   async function refresh({ force = false } = {}) {
     if (!force) {
-      // nu mai des de 800ms, ca să nu spamăm
       if (Date.now() - lastRefreshMs.current < 800) return;
     }
-
     if (Date.now() < backoffUntilMs.current) return;
     if (refreshInFlight.current) return;
 
@@ -164,9 +162,7 @@ export default function App() {
     }
   }
 
-  // ✅ AUTO-REFRESH (fără WS)
-  // - normal: la 4s
-  // - CALCULATING: la 1.5s (ca să vezi când vine VRF)
+  // polling: OPEN la 4s, CALCULATING la 1.5s
   useEffect(() => {
     if (!account || wrongNetwork) return;
 
@@ -177,7 +173,6 @@ export default function App() {
       await refresh();
     };
 
-    // imediat un refresh când pornește polling-ul
     tick();
 
     const id = setInterval(tick, state === 1 ? fast : base);
@@ -238,31 +233,6 @@ export default function App() {
     }
   }
 
-  async function runUpkeep() {
-    setStatus("");
-    try {
-      setLoading(true);
-      const c = await getWriteContract();
-      if (!c) throw new Error("MetaMask indisponibil");
-
-      const tx = await c.performUpkeep("0x");
-      pushEvent("TxSent", { type: "performUpkeep", hash: tx.hash });
-      setStatus("performUpkeep trimis…");
-
-      await tx.wait();
-      pushEvent("TxMined", { type: "performUpkeep", hash: tx.hash });
-      setStatus("Upkeep confirmat ✅ (așteptăm VRF)");
-
-      await refresh({ force: true });
-    } catch (e) {
-      console.error(e);
-      if (isRateLimitErr(e)) setStatus("Rate limited (429). Așteaptă 10–20s.");
-      else setStatus(e?.shortMessage || e?.reason || e?.message || "Upkeep failed");
-    } finally {
-      setLoading(false);
-    }
-  }
-
   async function withdraw() {
     setStatus("");
     try {
@@ -276,7 +246,7 @@ export default function App() {
 
       await tx.wait();
       pushEvent("TxMined", { type: "withdrawPrize", hash: tx.hash });
-      setStatus("Premiu retras 💸");
+      setStatus("Premiu retras 💸. Runda s-a resetat.");
 
       await refresh({ force: true });
     } catch (e) {
@@ -288,7 +258,7 @@ export default function App() {
     }
   }
 
-  // init + listeners
+  // init + listeners (NU setăm account automat; conectarea se face prin buton)
   useEffect(() => {
     const provider = getInjectedProvider();
     if (!provider) {
@@ -300,14 +270,9 @@ export default function App() {
 
     (async () => {
       try {
-        const accounts = await provider.send("eth_accounts", []);
         const net = await provider.getNetwork();
         if (!mounted) return;
-
         setChainId(`0x${net.chainId.toString(16)}`);
-        if (accounts?.length) setAccount(accounts[0]);
-
-        await refresh({ force: true });
       } catch (e) {
         console.error(e);
       }
@@ -336,145 +301,60 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const stateLabel = StateLabel[state] || `UNKNOWN(${state})`;
+  // ✅ Buy allowed:
+  // - dacă runda NU a început: permitem primul bilet
+  // - dacă runda a început: permitem bilete doar cât timp timeLeft > 0
+  const canBuy =
+    account && !wrongNetwork && !loading && state === 0 && (!roundStarted || timeLeft > 0n);
 
-  const canBuy = account && !wrongNetwork && !loading && state === 0;
-  const canUpkeep =
-    account && !wrongNetwork && !loading && state === 0 && timeLeft === 0n && players > 0n && pot > 0n;
-  const canWithdraw = account && !wrongNetwork && !loading && state === 2 && isWinner && lastPrize > 0n;
+  const canWithdraw =
+    account && !wrongNetwork && !loading && state === 2 && isWinner && lastPrize > 0n;
+
+  // 🔥 Landing + Dashboard
+  if (!account) {
+    return (
+      <Landing
+        hasMM={hasMM}
+        wrongNetwork={wrongNetwork}
+        chainName={CHAIN_NAME}
+        expectedChainId={EXPECTED_CHAIN_ID}
+        pot={pot}
+        onConnect={connect}
+        loading={loading}
+        status={status}
+      />
+    );
+  }
 
   return (
-    <div className="page">
-      <header className="header">
-        <div>
-          <div className="title">🎲 Lottery (VRF + Automation)</div>
-          <div className="subtitle">
-            {account ? `Wallet: ${shortAddr(account)}` : "Wallet: —"} • {chainId ? `Chain: ${chainId}` : "Chain: —"}
-          </div>
-        </div>
-
-        <div className="walletBox">
-          {!hasMM && <div className="pill danger">Instalează MetaMask</div>}
-
-          {account ? (
-            <button className="btn" onClick={() => refresh({ force: true })} disabled={loading}>
-              🔄 Refresh
-            </button>
-          ) : (
-            <button className="btn primary" onClick={connect} disabled={loading}>
-              {loading ? "Connecting…" : "Connect"}
-            </button>
-          )}
-        </div>
-      </header>
-
-      {wrongNetwork && (
-        <div className="banner danger">
-          Ești pe rețeaua greșită. Comută pe <b>{CHAIN_NAME}</b> ({EXPECTED_CHAIN_ID}).
-        </div>
-      )}
-
-      {status && <div className="banner">{status}</div>}
-
-      <main className="grid">
-        <section className="card">
-          <div className="cardTitle">Status</div>
-
-          <div className="rows">
-            <div className="row">
-              <span>State</span>
-              <b className={`badge s${state}`}>{stateLabel}</b>
-            </div>
-            <div className="row">
-              <span>Ticket price</span>
-              <b>{fmtEth(ticketPrice)} ETH</b>
-            </div>
-            <div className="row">
-              <span>Pot</span>
-              <b>{fmtEth(pot)} ETH</b>
-            </div>
-            <div className="row">
-              <span>Players</span>
-              <b>{players.toString()}</b>
-            </div>
-            <div className="row">
-              <span>My tickets</span>
-              <b>{myTickets.toString()}</b>
-            </div>
-
-            <div className="row">
-              <span>Interval</span>
-              <b>{intervalSec.toString()} sec</b>
-            </div>
-            <div className="row">
-              <span>Time left</span>
-              <b>{state === 0 ? `${timeLeft.toString()} sec` : "—"}</b>
-            </div>
-          </div>
-
-          <div className="actions">
-            <button className="btn primary" onClick={buyTicket} disabled={!canBuy}>
-              🎟️ Buy ticket
-            </button>
-
-            <button className="btn" onClick={runUpkeep} disabled={!canUpkeep} title="Dev/Test: performUpkeep('0x')">
-              ⚙️ Run upkeep (dev)
-            </button>
-
-            <button className="btn" onClick={withdraw} disabled={!canWithdraw}>
-              💸 Withdraw (winner)
-            </button>
-          </div>
-
-          <div className="small">
-            lastRequestId: <b>{lastRequestId.toString()}</b>
-          </div>
-        </section>
-
-        <section className="card">
-          <div className="cardTitle">Last round</div>
-
-          <div className="rows">
-            <div className="row">
-              <span>Last winner</span>
-              <b>{shortAddr(lastWinner)}</b>
-            </div>
-            <div className="row">
-              <span>Last prize</span>
-              <b>{fmtEth(lastPrize)} ETH</b>
-            </div>
-            <div className="row">
-              <span>Winner = you?</span>
-              <b>{isWinner ? "YES ✅" : "NO"}</b>
-            </div>
-          </div>
-
-          <div className="hint">
-            Dacă state = <b>CALCULATING</b>, aștepți callback-ul VRF.
-            Dacă state = <b>PAID</b>, doar winner poate da withdraw.
-          </div>
-        </section>
-
-        <section className="card">
-          <div className="cardTitle">Event feed</div>
-
-          {events.length === 0 ? (
-            <div className="empty">Încă nu avem evenimente.</div>
-          ) : (
-            <div className="feed">
-              {events.map((e) => (
-                <div className="event" key={e.t}>
-                  <div className="eventTop">
-                    <b>{e.label}</b>
-                    <span className="muted">{new Date(e.t).toLocaleTimeString()}</span>
-                  </div>
-                  <pre className="pre">{JSON.stringify(e.payload, null, 2)}</pre>
-                </div>
-              ))}
-            </div>
-          )}
-        </section>
-      </main>
-    </div>
+    <Dashboard
+      account={account}
+      chainId={chainId}
+      hasMM={hasMM}
+      wrongNetwork={wrongNetwork}
+      chainName={CHAIN_NAME}
+      expectedChainId={EXPECTED_CHAIN_ID}
+      status={status}
+      roundPhaseText={roundPhaseText}
+      state={state}
+      ticketPrice={ticketPrice}
+      pot={pot}
+      players={players}
+      myTickets={myTickets}
+      intervalSec={intervalSec}
+      timeLeft={timeLeft}
+      roundStarted={roundStarted}
+      lastRequestId={lastRequestId}
+      lastWinner={lastWinner}
+      lastPrize={lastPrize}
+      isWinner={isWinner}
+      loading={loading}
+      canBuy={canBuy}
+      canWithdraw={canWithdraw}
+      onRefresh={() => refresh({ force: true })}
+      onBuy={buyTicket}
+      onWithdraw={withdraw}
+      events={events}
+    />
   );
 }

@@ -1,4 +1,4 @@
-export const CONTRACT_ADDRESS = "0x7d8f1ad8c0264fe6fd73bd567b42f9290b58d2b7";
+export const CONTRACT_ADDRESS = "0x95727fe9c2ba725bdf234ff8d441bb82183561f8";
 
 export const EXPECTED_CHAIN_ID = "0xaa36a7"; // Sepolia
 export const CHAIN_NAME = "Sepolia";

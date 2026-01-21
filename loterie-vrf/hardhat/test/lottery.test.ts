@@ -5,12 +5,7 @@ import { decodeEventLog } from "viem";
 
 const { viem } = await hre.network.connect();
 
-/**
- * VRFCoordinatorV2_5Mock event signatures differ a bit between versions.
- * We try multiple ABI variants and decode whichever matches.
- */
 const SUB_CREATED_ABI_CANDIDATES = [
-  // Variant A: uint64 subId, owner not indexed
   [
     {
       type: "event",
@@ -22,7 +17,6 @@ const SUB_CREATED_ABI_CANDIDATES = [
       anonymous: false,
     },
   ],
-  // Variant B: uint256 subId, owner not indexed
   [
     {
       type: "event",
@@ -34,7 +28,6 @@ const SUB_CREATED_ABI_CANDIDATES = [
       anonymous: false,
     },
   ],
-  // Variant C: uint64 subId, owner indexed
   [
     {
       type: "event",
@@ -46,7 +39,6 @@ const SUB_CREATED_ABI_CANDIDATES = [
       anonymous: false,
     },
   ],
-  // Variant D: uint256 subId, owner indexed
   [
     {
       type: "event",
@@ -60,7 +52,6 @@ const SUB_CREATED_ABI_CANDIDATES = [
   ],
 ] as const;
 
-// ✅ Hardhat3+viem safe time travel
 async function increaseTime(seconds: bigint) {
   const testClient = await viem.getTestClient();
   await testClient.increaseTime({ seconds: Number(seconds) });
@@ -76,20 +67,14 @@ function extractSubIdFromReceiptLogs(receipt: any): bigint {
           data: log.data,
           topics: log.topics,
         });
-
         if (decoded.eventName === "SubscriptionCreated") {
           return decoded.args.subId as unknown as bigint;
         }
-      } catch {
-        // try next ABI candidate
-      }
+      } catch {}
     }
   }
-
   const topic0s = (receipt.logs ?? []).map((l: any) => l.topics?.[0]).filter(Boolean);
-  throw new Error(
-    `Could not decode SubscriptionCreated event. topic0s seen: ${JSON.stringify(topic0s)}`
-  );
+  throw new Error(`Could not decode SubscriptionCreated event. topic0s: ${JSON.stringify(topic0s)}`);
 }
 
 async function deployFixture() {
@@ -99,9 +84,6 @@ async function deployFixture() {
   const [deployer, user1, user2] = await viem.getWalletClients();
   const publicClient = await viem.getPublicClient();
 
-  // ----------------------------
-  // Deploy VRF v2.5 Mock
-  // ----------------------------
   const baseFee = 1_000_000_000_000_000_000n;
   const gasPriceLink = 1_000_000_000n;
   const weiPerUnitLink = 1_000_000_000_000_000_000n;
@@ -112,7 +94,6 @@ async function deployFixture() {
     weiPerUnitLink,
   ]);
 
-  // Create subscription and extract subId from logs
   const txHash = await (vrfMock as any).write.createSubscription({
     account: deployer.account,
   });
@@ -120,17 +101,14 @@ async function deployFixture() {
   const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
   const subId = extractSubIdFromReceiptLogs(receipt);
 
-  // Fund subscription (mock LINK)
   await (vrfMock as any).write.fundSubscription(
-    [subId, 100000000000000000000n], // 100 mock LINK
+    [subId, 100000000000000000000n],
     { account: deployer.account }
   );
 
-  // keyHash any bytes32 for local mock
   const keyHash =
     "0x787d74caea10b2b357790d5b5247c2f63d1d91572a9846f780606e4d953677ae";
 
-  // Deploy Lottery
   const lottery = await viem.deployContract("Lottery", [
     ticketPrice,
     interval,
@@ -139,7 +117,6 @@ async function deployFixture() {
     keyHash,
   ]);
 
-  // Add consumer
   await (vrfMock as any).write.addConsumer([subId, lottery.address], {
     account: deployer.account,
   });
@@ -147,8 +124,14 @@ async function deployFixture() {
   return { ticketPrice, interval, deployer, user1, user2, lottery, vrfMock, subId };
 }
 
-describe("Lottery (Chainlink VRF v2.5 mock)", () => {
-  it("buyTicket adds player and increases pot", async () => {
+describe("Lottery (VRF v2.5 mock)", () => {
+  it("checkUpkeep is false before round starts (lastTimeStamp=0)", async () => {
+    const { lottery } = await deployFixture();
+    const [needed] = await (lottery as any).read.checkUpkeep(["0x"]);
+    assert.equal(needed, false);
+  });
+
+  it("buyTicket: adds player, starts timer on first ticket, increases pot", async () => {
     const { ticketPrice, user1, lottery } = await deployFixture();
 
     await (lottery as any).write.buyTicket({
@@ -158,17 +141,30 @@ describe("Lottery (Chainlink VRF v2.5 mock)", () => {
 
     const count: bigint = await (lottery as any).read.getPlayersCount();
     const pot: bigint = await (lottery as any).read.getPot();
+    const ts: bigint = await (lottery as any).read.lastTimeStamp();
 
     assert.equal(count, 1n);
     assert.equal(pot, ticketPrice);
+    assert.ok(ts > 0n);
+  });
+
+  it("buyTicket reverts if wrong ETH", async () => {
+    const { user1, lottery } = await deployFixture();
+
+    await assert.rejects(async () => {
+      await (lottery as any).write.buyTicket({
+        account: user1.account,
+        value: 1n,
+      });
+    });
   });
 
   it("performUpkeep only works when conditions are met", async () => {
-    const { ticketPrice, interval, user1, lottery } = await deployFixture();
+    const { ticketPrice, interval, deployer, user1, lottery } = await deployFixture();
 
     // no players -> revert
     await assert.rejects(async () => {
-      await (lottery as any).write.performUpkeep(["0x"]);
+      await (lottery as any).write.performUpkeep(["0x"], { account: deployer.account });
     });
 
     await (lottery as any).write.buyTicket({
@@ -178,30 +174,31 @@ describe("Lottery (Chainlink VRF v2.5 mock)", () => {
 
     // time not passed -> revert
     await assert.rejects(async () => {
-      await (lottery as any).write.performUpkeep(["0x"]);
+      await (lottery as any).write.performUpkeep(["0x"], { account: deployer.account });
     });
 
     await increaseTime(interval + 1n);
 
-    await (lottery as any).write.performUpkeep(["0x"]);
+    await (lottery as any).write.performUpkeep(["0x"], { account: deployer.account });
 
     const st: bigint = BigInt(await (lottery as any).read.state());
     assert.equal(st, 1n); // CALCULATING
   });
 
   it("VRF fulfill selects winner and moves to PAID", async () => {
-    const { ticketPrice, interval, user1, user2, lottery, vrfMock } = await deployFixture();
+    const { ticketPrice, interval, deployer, user1, user2, lottery, vrfMock } = await deployFixture();
 
     await (lottery as any).write.buyTicket({ account: user1.account, value: ticketPrice });
     await (lottery as any).write.buyTicket({ account: user2.account, value: ticketPrice });
 
     await increaseTime(interval + 1n);
 
-    await (lottery as any).write.performUpkeep(["0x"]);
+    await (lottery as any).write.performUpkeep(["0x"], { account: deployer.account });
     const requestId: bigint = await (lottery as any).read.lastRequestId();
 
-    // VRF mock fulfills
-    await (vrfMock as any).write.fulfillRandomWords([requestId, lottery.address]);
+    await (vrfMock as any).write.fulfillRandomWords([requestId, lottery.address], {
+      account: deployer.account,
+    });
 
     const winner: string = await (lottery as any).read.lastWinner();
     const prize: bigint = await (lottery as any).read.lastPrize();
@@ -216,18 +213,20 @@ describe("Lottery (Chainlink VRF v2.5 mock)", () => {
     assert.equal(state, 2n); // PAID
   });
 
-  it("withdrawPrize: only winner can withdraw, then resets to OPEN", async () => {
-    const { ticketPrice, interval, user1, user2, lottery, vrfMock } = await deployFixture();
+  it("withdrawPrize: only winner can withdraw, then resets to OPEN and clears players", async () => {
+    const { ticketPrice, interval, deployer, user1, user2, lottery, vrfMock } = await deployFixture();
 
     await (lottery as any).write.buyTicket({ account: user1.account, value: ticketPrice });
     await (lottery as any).write.buyTicket({ account: user2.account, value: ticketPrice });
 
     await increaseTime(interval + 1n);
 
-    await (lottery as any).write.performUpkeep(["0x"]);
+    await (lottery as any).write.performUpkeep(["0x"], { account: deployer.account });
     const requestId: bigint = await (lottery as any).read.lastRequestId();
 
-    await (vrfMock as any).write.fulfillRandomWords([requestId, lottery.address]);
+    await (vrfMock as any).write.fulfillRandomWords([requestId, lottery.address], {
+      account: deployer.account,
+    });
 
     const winner: string = await (lottery as any).read.lastWinner();
     const w = winner.toLowerCase();
@@ -244,8 +243,10 @@ describe("Lottery (Chainlink VRF v2.5 mock)", () => {
 
     const count: bigint = await (lottery as any).read.getPlayersCount();
     const state: bigint = BigInt(await (lottery as any).read.state());
+    const ts: bigint = await (lottery as any).read.lastTimeStamp();
 
     assert.equal(count, 0n);
     assert.equal(state, 0n); // OPEN
+    assert.equal(ts, 0n); // round not started
   });
 });
