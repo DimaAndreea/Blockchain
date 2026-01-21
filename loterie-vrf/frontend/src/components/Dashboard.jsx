@@ -34,20 +34,60 @@ function Icon({ name, className = "icon", size = 18 }) {
     case "clock":
       return (
         <svg {...common}>
-          <path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z" stroke="currentColor" strokeWidth="2" />
-          <path d="M12 7v5l3 2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+          <path
+            d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z"
+            stroke="currentColor"
+            strokeWidth="2"
+          />
+          <path
+            d="M12 7v5l3 2"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
         </svg>
       );
 
     case "trophy":
       return (
         <svg {...common}>
-          <path d="M8 4h8v3a4 4 0 0 1-8 0V4Z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
-          <path d="M6 7H4a2 2 0 0 0 2 2h1" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-          <path d="M18 7h2a2 2 0 0 1-2 2h-1" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-          <path d="M12 11v4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-          <path d="M10 15h4v4h-4v-4Z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
-          <path d="M8 19h8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+          <path
+            d="M8 4h8v3a4 4 0 0 1-8 0V4Z"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinejoin="round"
+          />
+          <path
+            d="M6 7H4a2 2 0 0 0 2 2h1"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+          />
+          <path
+            d="M18 7h2a2 2 0 0 1-2 2h-1"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+          />
+          <path
+            d="M12 11v4"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+          />
+          <path
+            d="M10 15h4v4h-4v-4Z"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinejoin="round"
+          />
+          <path
+            d="M8 19h8"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+          />
         </svg>
       );
 
@@ -107,9 +147,24 @@ function Icon({ name, className = "icon", size = 18 }) {
     case "cash":
       return (
         <svg {...common}>
-          <path d="M3 7h18v10H3V7Z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
-          <path d="M7 11a2 2 0 0 0 0 2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-          <path d="M17 11a2 2 0 0 1 0 2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+          <path
+            d="M3 7h18v10H3V7Z"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinejoin="round"
+          />
+          <path
+            d="M7 11a2 2 0 0 0 0 2"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+          />
+          <path
+            d="M17 11a2 2 0 0 1 0 2"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+          />
           <path
             d="M12 10a2 2 0 1 1 0 4 2 2 0 0 1 0-4Z"
             stroke="currentColor"
@@ -165,7 +220,8 @@ export default function Dashboard({
   ticketPrice,
   pot,
   players,
-  myTickets,
+  myTicketsRound,
+  myTicketsAllTime,
   intervalSec,
   timeLeft,
   roundStarted,
@@ -193,16 +249,17 @@ export default function Dashboard({
   }, [chainId]);
 
   const phaseLine = useMemo(() => {
-    // mic “status line” sub header, NU ticker bar
     if (wrongNetwork) return `Wrong network. Switch to ${chainName} (${expectedChainId}).`;
     if (!hasMM) return "MetaMask not detected. Please install MetaMask.";
     if (status?.trim()) return status;
     return roundPhaseText || "";
   }, [wrongNetwork, chainName, expectedChainId, hasMM, status, roundPhaseText]);
 
+  const myRound = useMemo(() => (roundStarted ? (myTicketsRound ?? 0n) : 0n), [roundStarted, myTicketsRound]);
+
   return (
     <div className="page">
-      {/* HEADER: left wallet, center title, right logout */}
+      {/* HEADER */}
       <header className="appHeader">
         <div className="hdrLeft">
           <div className="walletBadge">
@@ -224,60 +281,66 @@ export default function Dashboard({
           </button>
         </div>
       </header>
+      <hr className="hrNeon" />
 
-      {/* small status line (no big bar) */}
-      {phaseLine?.trim() ? <div className={`statusLine ${wrongNetwork ? "danger" : ""}`}>{phaseLine}</div> : null}
+
+      {/* small status line 
+      {phaseLine?.trim() ? (
+        <div className={`statusLine ${wrongNetwork ? "danger" : ""}`}>{phaseLine}</div>
+      ) : null}
+       */}
 
       {/* MAIN */}
       <main className="layout">
         {/* HERO */}
-        <section className="card hero">
-          <div className="heroHeader heroHeaderCentered">
-            <div className="heroPot">
+        <section className="heroWrap">
+            <div className="card hero">
+            <div className="heroHeader heroHeaderCentered">
+                <div className="heroPot">
                 <div className="kicker">Prize pool</div>
                 <div className="heroValue">{fmtEth(pot)} ETH</div>
-            </div>
+                </div>
             </div>
 
-
-          <div className="heroCountdown">
-            <div className="countCell">
-              <div className="countNum">{pad2(h)}</div>
-              <div className="countCap">HOURS</div>
+            <div className="heroCountdown">
+                <div className="countCell">
+                <div className="countNum">{pad2(h)}</div>
+                <div className="countCap">HOURS</div>
+                </div>
+                <div className="countCell">
+                <div className="countNum">{pad2(m)}</div>
+                <div className="countCap">MINUTES</div>
+                </div>
+                <div className="countCell">
+                <div className="countNum">{pad2(sec)}</div>
+                <div className="countCap">SECONDS</div>
+                </div>
             </div>
-            <div className="countCell">
-              <div className="countNum">{pad2(m)}</div>
-              <div className="countCap">MINUTES</div>
-            </div>
-            <div className="countCell">
-              <div className="countNum">{pad2(sec)}</div>
-              <div className="countCap">SECONDS</div>
-            </div>
-          </div>
 
-          <div className="heroHint">
-            {!roundStarted ? (
-              <span className="accentHint">Start the round by buying the first ticket.</span>
-            ) : state === 1 ? (
-              <span className="accentHint">VRF is generating a verifiable random winner.</span>
-            ) : state === 2 ? (
-              <span className="accentHint">Round finished. Winner can withdraw the prize.</span>
-            ) : timeLeft > 0n ? (
-              <span className="accentHint">Tickets are open while the timer runs.</span>
-            ) : (
-              <span className="accentHint">Time is up. Waiting for automation + VRF.</span>
-            )}
-          </div>
+            <div className="heroHint">
+                {!roundStarted ? (
+                <span className="accentHint">Start the round by buying the first ticket.</span>
+                ) : state === 1 ? (
+                <span className="accentHint">VRF is generating a verifiable random winner.</span>
+                ) : state === 2 ? (
+                <span className="accentHint">Round finished. Winner can withdraw the prize.</span>
+                ) : timeLeft > 0n ? (
+                <span className="accentHint">Tickets are open while the timer runs.</span>
+                ) : (
+                <span className="accentHint">Time is up. Waiting for automation + VRF.</span>
+                )}
+            </div>
 
-          <div className="heroMeta">
-            <span>
-              Interval: <b>{intervalSec.toString()}s</b>
-            </span>
-            <span className="dot">•</span>
-            <span>
-              Last request id: <b className="mono">{lastRequestId.toString()}</b>
-            </span>
-          </div>
+            <div className="heroMeta">
+                <span>
+                Interval: <b>{intervalSec.toString()}s</b>
+                </span>
+                <span className="dot">•</span>
+                <span>
+                Last request id: <b className="mono">{lastRequestId.toString()}</b>
+                </span>
+            </div>
+            </div>
         </section>
 
         {/* ACTIONS */}
@@ -294,20 +357,37 @@ export default function Dashboard({
               <span className="muted">Players</span>
               <b>{players.toString()}</b>
             </div>
+
+            {/* ✅ THIS ROUND */}
             <div className="row">
               <span className="muted">My tickets</span>
-              <b>{myTickets.toString()}</b>
+              <b>{myRound.toString()}</b>
+            </div>
+
+            {/* ✅ ALL TIME */}
+            <div className="row tiny">
+              <span className="muted">All-time tickets</span>
+              <b>{(myTicketsAllTime ?? 0n).toString()}</b>
             </div>
 
             <div className="btnStack">
-              <button className="btn primary" onClick={onBuy} disabled={!canBuy}>
-                <Icon name="cart" /> Buy ticket ({fmtEth(ticketPrice)} ETH)
-              </button>
+                <button
+                    className={`btn buy ${canBuy ? "primary" : "disabledLook"}`}
+                    onClick={onBuy}
+                    disabled={!canBuy}
+                >
+                    <Icon name="cart" /> Buy ticket ({fmtEth(ticketPrice)} ETH)
+                </button>
 
-              <button className="btn" onClick={onWithdraw} disabled={!canWithdraw}>
-                <Icon name="cash" /> Withdraw prize
-              </button>
-            </div>
+                <button
+                    className={`btn withdraw ${canWithdraw ? "primary" : "disabledLook"}`}
+                    onClick={onWithdraw}
+                    disabled={!canWithdraw}
+                >
+                    <Icon name="cash" /> Withdraw prize
+                </button>
+                </div>
+
 
             <div className="actionsFoot">
               {canWithdraw ? (
@@ -332,10 +412,6 @@ export default function Dashboard({
               <span className="muted">Prize</span>
               <b>{fmtEth(lastPrize)} ETH</b>
             </div>
-            <div className="miniRow">
-              <span className="muted">Winner (you)</span>
-              <b>{isWinner ? "YES" : "NO"}</b>
-            </div>
           </div>
         </aside>
 
@@ -350,12 +426,12 @@ export default function Dashboard({
             <div className="statValue">{players.toString()}</div>
           </div>
           <div className="stat">
-            <div className="statLabel">My tickets</div>
-            <div className="statValue">{myTickets.toString()}</div>
+            <div className="statLabel">My tickets (round)</div>
+            <div className="statValue">{myRound.toString()}</div>
           </div>
           <div className="stat">
-            <div className="statLabel">Last winner</div>
-            <div className="statValue mono">{shortAddr(lastWinner)}</div>
+            <div className="statLabel">All-time tickets</div>
+            <div className="statValue">{(myTicketsAllTime ?? 0n).toString()}</div>
           </div>
         </section>
 

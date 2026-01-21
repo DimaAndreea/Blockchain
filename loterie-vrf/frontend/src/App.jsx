@@ -41,7 +41,10 @@ export default function App() {
   const [lastPrize, setLastPrize] = useState(0n);
   const [lastRequestId, setLastRequestId] = useState(0n);
 
-  const [myTickets, setMyTickets] = useState(0n);
+  // ✅ new: tickets split
+  const [myTicketsAllTime, setMyTicketsAllTime] = useState(0n);
+  const [myTicketsRound, setMyTicketsRound] = useState(0n);
+
   const [events, setEvents] = useState([]);
 
   const wrongNetwork = useMemo(() => {
@@ -87,7 +90,7 @@ export default function App() {
       return "Winner selected. The winner can now claim the prize.";
     }
     if (!roundStarted) return "Round not started yet. Buy the first ticket to start the countdown.";
-    if (timeLeft > 0n) return "Tickets are on sale. Countdown is running.";
+    if (timeLeft > 0n) return `Tickets are on sale. Sales end in ${timeLeft.toString()}s.`;
     return "Ticket sales are closed. The draw will start automatically shortly.";
   }, [state, roundStarted, timeLeft, isWinner, lastPrize]);
 
@@ -102,6 +105,51 @@ export default function App() {
   const refreshInFlight = useRef(false);
   const backoffUntilMs = useRef(0);
   const lastRefreshMs = useRef(0);
+
+  // ✅ helper: compute round tickets from TicketBought logs since lastTimeStamp
+  async function computeMyRoundTickets({ c, addr, lts }) {
+    if (!addr) return 0n;
+    if (!lts || lts === 0n) return 0n;
+
+    // try to get a provider from the read contract runner/provider
+    const provider =
+      c?.runner?.provider ||
+      c?.runner ||
+      getInjectedProvider();
+
+    if (!provider?.getBlockNumber) return 0n;
+
+    const latest = await provider.getBlockNumber();
+
+    // window: last 20k blocks (safe-ish for local/dev; adjust if you want)
+    const fromBlock = Math.max(0, latest - 20000);
+
+    let logs = [];
+    try {
+      // ethers v6: event filter by indexed buyer
+      const boughtFilter = c.filters.TicketBought(addr);
+      logs = await c.queryFilter(boughtFilter, fromBlock, latest);
+    } catch (e) {
+      console.warn("queryFilter TicketBought failed", e);
+      return 0n;
+    }
+
+    // cache blocks to avoid repeated fetch
+    const blockCache = new Map();
+    let count = 0n;
+
+    for (const ev of logs) {
+      const bn = ev.blockNumber;
+      if (!blockCache.has(bn)) {
+        const blk = await provider.getBlock(bn);
+        blockCache.set(bn, blk?.timestamp ?? 0);
+      }
+      const ts = BigInt(blockCache.get(bn) || 0);
+      if (ts >= lts) count += 1n;
+    }
+
+    return count;
+  }
 
   async function refresh({ force = false } = {}) {
     if (!force) {
@@ -145,11 +193,21 @@ export default function App() {
       setLastPrize(lp ?? 0n);
       setLastRequestId(lr ?? 0n);
 
+      // ✅ tickets: all-time + this round
       if (account) {
-        const mt = await c.ticketsByAddress(account);
-        setMyTickets(mt ?? 0n);
+        const [allTime, roundCt] = await Promise.all([
+          c.ticketsByAddress(account),
+          computeMyRoundTickets({ c, addr: account, lts: lts ?? 0n }),
+        ]);
+
+        setMyTicketsAllTime(allTime ?? 0n);
+
+        // if round not started, show 0 for round tickets
+        const roundStartedNow = (pc ?? 0n) > 0n && (lts ?? 0n) > 0n;
+        setMyTicketsRound(roundStartedNow ? (roundCt ?? 0n) : 0n);
       } else {
-        setMyTickets(0n);
+        setMyTicketsAllTime(0n);
+        setMyTicketsRound(0n);
       }
     } catch (e) {
       console.error(e);
@@ -210,11 +268,10 @@ export default function App() {
   }
 
   function logout() {
-    // MetaMask nu “deconectează” programatic contul; noi doar resetăm UI state.
     setAccount(null);
     setStatus("Disconnected.");
-    setEvents([]);
-    setMyTickets(0n);
+    setMyTicketsAllTime(0n);
+    setMyTicketsRound(0n);
   }
 
   async function buyTicket() {
@@ -297,13 +354,13 @@ export default function App() {
       refresh({ force: true });
     };
 
-    window.ethereum.on?.("accountsChanged", onAccounts);
-    window.ethereum.on?.("chainChanged", onChain);
+    window.ethereum?.on?.("accountsChanged", onAccounts);
+    window.ethereum?.on?.("chainChanged", onChain);
 
     return () => {
       mounted = false;
-      window.ethereum.removeListener?.("accountsChanged", onAccounts);
-      window.ethereum.removeListener?.("chainChanged", onChain);
+      window.ethereum?.removeListener?.("accountsChanged", onAccounts);
+      window.ethereum?.removeListener?.("chainChanged", onChain);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -318,7 +375,6 @@ export default function App() {
         wrongNetwork={wrongNetwork}
         chainName={CHAIN_NAME}
         expectedChainId={EXPECTED_CHAIN_ID}
-        pot={pot}
         onConnect={connect}
         loading={loading}
         status={status}
@@ -340,7 +396,8 @@ export default function App() {
       ticketPrice={ticketPrice}
       pot={pot}
       players={players}
-      myTickets={myTickets}
+      myTicketsRound={myTicketsRound}
+      myTicketsAllTime={myTicketsAllTime}
       intervalSec={intervalSec}
       timeLeft={timeLeft}
       roundStarted={roundStarted}
