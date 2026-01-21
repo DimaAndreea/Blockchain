@@ -1,5 +1,9 @@
 # PT SANZIANA (CITESTE !!!!!!)
 
+## pt automatizare am folosit: https://automation.chain.link/
+
+- ca sa nu dau click "run upkeep"
+
 ## Chainlink VRF:
 
 https://vrf.chain.link/
