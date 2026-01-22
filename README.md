@@ -1,5 +1,9 @@
 # PT SANZIANA (CITESTE !!!!!!)
 
+asadar, pt a rula aplicatia:
+
+din frontend da npm run dev. daca contractul e deployed, ar trebui sa fie suficient
+
 ## pt automatizare am folosit: https://automation.chain.link/
 
 - ca sa nu dau click "run upkeep"
