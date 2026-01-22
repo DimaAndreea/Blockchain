@@ -14,6 +14,7 @@ export function useLottery({ account, wrongNetwork, setStatus, setLoading }) {
   const [state, setState] = useState(0);
   const [lastWinner, setLastWinner] = useState(null);
   const [lastPrize, setLastPrize] = useState(0n);
+  const [previousPrize, setPreviousPrize] = useState(0n);
   const [lastRequestId, setLastRequestId] = useState(0n);
 
   const [myTickets, setMyTickets] = useState(0n);
@@ -69,7 +70,7 @@ export function useLottery({ account, wrongNetwork, setStatus, setLoading }) {
         return;
       }
 
-      const [tp, intv, lts, p, pc, st, lw, lp, lr] = await Promise.all([
+      const [tp, intv, lts, p, pc, st, lw, lp, lr, pp] = await Promise.all([
         c.ticketPrice(),
         c.interval(),
         c.lastTimeStamp(),
@@ -79,6 +80,7 @@ export function useLottery({ account, wrongNetwork, setStatus, setLoading }) {
         c.lastWinner(),
         c.lastPrize(),
         c.lastRequestId(),
+        c.previousPrize(),
       ]);
 
       setTicketPrice(tp ?? 0n);
@@ -92,6 +94,7 @@ export function useLottery({ account, wrongNetwork, setStatus, setLoading }) {
       setState(stNum);
       setLastWinner(lw ?? null);
       setLastPrize(lp ?? 0n);
+      setPreviousPrize(pp ?? 0n);
       setLastRequestId(lr ?? 0n);
 
       const mt = await c.ticketsByAddress(account);
@@ -211,6 +214,7 @@ export function useLottery({ account, wrongNetwork, setStatus, setLoading }) {
     state,
     lastWinner,
     lastPrize,
+    previousPrize,
     lastRequestId,
     myTickets,
     events,

@@ -49,6 +49,7 @@ contract Lottery is VRFConsumerBaseV2Plus, AutomationCompatibleInterface {
     // payout (pull pattern)
     address public lastWinner;
     uint256 public lastPrize;
+    uint256 public previousPrize; // prize din runda trecuta (salvata dupa withdraw)
 
     mapping(address => uint256) public ticketsByAddress;
 
@@ -202,6 +203,7 @@ contract Lottery is VRFConsumerBaseV2Plus, AutomationCompatibleInterface {
         if (amount == 0) revert Lottery__NothingToWithdraw();
 
         // effects first
+        previousPrize = lastPrize; // salveaza prize-ul inainte sa fie sters
         lastPrize = 0;
         delete players;
 

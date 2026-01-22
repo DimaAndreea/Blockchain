@@ -1,6 +1,8 @@
 import { ethers } from "ethers";
-import abi from "./abi/lotteryAbi.json";
+import lotteryArtifact from "./abi/Lottery.json";
 import { CONTRACT_ADDRESS } from "./config";
+console.log("ETH.JS USING CONTRACT_ADDRESS =", CONTRACT_ADDRESS);
+
 
 let _injected = null;
 
@@ -13,12 +15,12 @@ export function getInjectedProvider() {
 export function getReadContract() {
   const p = getInjectedProvider();
   if (!p) return null;
-  return new ethers.Contract(CONTRACT_ADDRESS, abi, p);
+  return new ethers.Contract(CONTRACT_ADDRESS, lotteryArtifact.abi, p);
 }
 
 export async function getWriteContract() {
   const p = getInjectedProvider();
   if (!p) return null;
   const signer = await p.getSigner();
-  return new ethers.Contract(CONTRACT_ADDRESS, abi, signer);
+  return new ethers.Contract(CONTRACT_ADDRESS, lotteryArtifact.abi, signer);
 }

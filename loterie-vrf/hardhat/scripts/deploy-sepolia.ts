@@ -39,7 +39,7 @@ async function main() {
   // Lottery params
   // ----------------------------
   const ticketPrice = 10_000_000_000_000_000n; // 0.01 ETH
-  const interval = 60n; // 60 sec
+  const interval = 120n; // 60 sec
 
   // ----------------------------
   // VRF params (din .env)

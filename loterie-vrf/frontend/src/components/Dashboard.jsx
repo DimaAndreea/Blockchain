@@ -192,6 +192,15 @@ function fmtEth(wei) {
   }
 }
 
+function fmtEthPrecise(wei, decimals = 4) {
+  try {
+    const value = parseFloat(ethers.formatEther(wei ?? 0n));
+    return value.toFixed(decimals);
+  } catch {
+    return "0";
+  }
+}
+
 function splitHMS(totalSec) {
   const s = totalSec < 0n ? 0n : totalSec;
   const h = s / 3600n;
@@ -229,6 +238,7 @@ export default function Dashboard({
   lastRequestId,
   lastWinner,
   lastPrize,
+  previousPrize,
   isWinner,
 
   loading,
@@ -256,6 +266,15 @@ export default function Dashboard({
   }, [wrongNetwork, chainName, expectedChainId, hasMM, status, roundPhaseText]);
 
   const myRound = useMemo(() => (roundStarted ? (myTicketsRound ?? 0n) : 0n), [roundStarted, myTicketsRound]);
+  
+  const lastRoundPrizeWei = useMemo(() => {
+    return state === 2 ? (lastPrize ?? 0n) : (previousPrize ?? 0n);
+  }, [state, lastPrize, previousPrize]);
+
+  const lastRoundLabel = useMemo(() => {
+    return state === 2 ? "Prize (selected)" : "Prize (paid)";
+  }, [state]);
+
 
   return (
     <div className="page">
@@ -276,9 +295,11 @@ export default function Dashboard({
         </div>
 
         <div className="hdrRight">
-          <button className="btn ghost" onClick={onLogout} disabled={loading}>
-            <Icon name="logout" /> Logout
-          </button>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <button className="btn ghost" onClick={onLogout} disabled={loading}>
+              <Icon name="logout" /> Logout
+            </button>
+          </div>
         </div>
       </header>
       <hr className="hrNeon" />
@@ -318,12 +339,16 @@ export default function Dashboard({
             </div>
 
             <div className="heroHint">
-                {!roundStarted ? (
+                {canWithdraw ? (
+                <span className="accentHint">You won! Withdraw your prize now!</span>
+                ) : isWinner && state === 2 ? (
+                <span className="accentHint">You're the winner! Waiting for the prize to become available...</span>
+                ) : state === 2 ? (
+                <span className="accentHint">Round finished. Waiting for winner to withdraw the prize.</span>
+                ) : !roundStarted ? (
                 <span className="accentHint">Start the round by buying the first ticket.</span>
                 ) : state === 1 ? (
                 <span className="accentHint">VRF is generating a verifiable random winner.</span>
-                ) : state === 2 ? (
-                <span className="accentHint">Round finished. Winner can withdraw the prize.</span>
                 ) : timeLeft > 0n ? (
                 <span className="accentHint">Tickets are open while the timer runs.</span>
                 ) : (
@@ -331,7 +356,7 @@ export default function Dashboard({
                 )}
             </div>
 
-            <div className="heroMeta">
+            {/* <div className="heroMeta">
                 <span>
                 Interval: <b>{intervalSec.toString()}s</b>
                 </span>
@@ -339,7 +364,7 @@ export default function Dashboard({
                 <span>
                 Last request id: <b className="mono">{lastRequestId.toString()}</b>
                 </span>
-            </div>
+            </div> */}
             </div>
         </section>
 
@@ -389,15 +414,15 @@ export default function Dashboard({
                 </div>
 
 
-            <div className="actionsFoot">
+            {/* <div className="actionsFoot">
               {canWithdraw ? (
-                <span className="good">You are the winner. Withdrawal is available.</span>
+                <span className="good">You are the winner! Withdraw your prize!</span>
               ) : isWinner && lastPrize > 0n ? (
                 <span className="muted">You are the winner, but withdrawal isn’t available yet.</span>
               ) : (
                 <span className="muted">The winner can withdraw once the draw is completed.</span>
               )}
-            </div>
+            </div> */}
           </div>
 
           <div className="miniCard">
@@ -410,12 +435,12 @@ export default function Dashboard({
             </div>
             <div className="miniRow">
               <span className="muted">Prize</span>
-              <b>{fmtEth(lastPrize)} ETH</b>
+              <b>{fmtEthPrecise(lastRoundPrizeWei, 2)} ETH</b>
             </div>
           </div>
         </aside>
 
-        {/* STATS */}
+        {/* STATS
         <section className="stats">
           <div className="stat">
             <div className="statLabel">Ticket price</div>
@@ -433,9 +458,9 @@ export default function Dashboard({
             <div className="statLabel">All-time tickets</div>
             <div className="statValue">{(myTicketsAllTime ?? 0n).toString()}</div>
           </div>
-        </section>
+        </section> */}
 
-        {/* EVENT FEED */}
+        {/* EVENT FEED
         <section className="card feed">
           <div className="feedHead">
             <div className="panelTitle">Event feed</div>
@@ -457,7 +482,7 @@ export default function Dashboard({
           ) : (
             <div className="empty">No events yet.</div>
           )}
-        </section>
+        </section> */}
       </main>
     </div>
   );

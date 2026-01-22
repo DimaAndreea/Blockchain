@@ -1,8 +1,18 @@
 /* -------------------------
    BASE
 ------------------------- */
-
 :root {
+  /* ---------- FONTS (arcade + crypto) ---------- */
+  --font-ui: "Oxanium", system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", Helvetica, Arial, sans-serif;
+
+  /* arcade titles / highlights */
+  --font-title: "Press Start 2P", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* numbers */
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* ---------- THEME ---------- */
   --bg-main: radial-gradient(
     1200px 800px at 20% 10%,
     #06231a 0%,
@@ -22,31 +32,60 @@
 
   --shadow: 0 18px 60px rgba(0, 0, 0, 0.55);
   --glow: 0 0 28px rgba(34, 255, 136, 0.25);
+
+  --radius: 16px;
+  --radius-sm: 10px;
+
+  /* ---------- GLOBAL TEXT RENDER ---------- */
+  font-family: var(--font-ui);
+  font-size: 16px;
+  line-height: 1.6;
+  font-weight: 500;
+
+  color-scheme: dark;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
+
+
 
 * { box-sizing: border-box; }
 
-html, body, #root {
+html,
+body,
+#root {
   width: 100%;
   height: 100%;
   margin: 0;
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+
+  /* folosește fonturile definite în :root */
+  font-family: var(--font-ui);
+
   background: var(--bg-main);
   color: var(--text);
 }
 
+
 /* -------------------------
    PAGE (FULL WIDTH)
 ------------------------- */
-.page {
+.page{
   min-height: 100vh;
   width: 100%;
-
-  /* ✅ smaller padding so content can breathe wide */
   padding: 18px 22px 40px;
-
   background: var(--bg-main);
+
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+
+  /* ✅ îl urcă puțin ca să nu pară “prea jos” */
+  padding-top: 40px;
+  padding-bottom: 60px;
 }
+
 
 /* ultra wide: keep some breathing room but still full */
 @media (min-width: 1400px) {
@@ -207,9 +246,33 @@ html, body, #root {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 }
 
+@keyframes accentPulse {
+  0%, 100% {
+    transform: scale(1);
+    text-shadow: 0 0 16px rgba(34, 255, 136, 0.25);
+    opacity: 0.8;
+  }
+  50% {
+    transform: scale(1.12);
+    text-shadow: 0 0 45px rgba(34, 255, 136, 0.55);
+    opacity: 1;
+  }
+}
+
 .accentHint{
+  display: inline-block;
   color: var(--accent);
+  font-size: 24px;
+  font-weight: 900;
+  letter-spacing: 0.5px;
+  padding: 14px 24px;
+  border-radius: 20px;
+  border: 2px solid rgba(34, 255, 136, 0.35);
+  background: rgba(34, 255, 136, 0.08);
+  backdrop-filter: blur(8px);
   text-shadow: 0 0 22px rgba(34,255,136,0.16);
+  animation: accentPulse 3s ease-in-out infinite;
+  box-shadow: 0 0 32px rgba(34, 255, 136, 0.15);
 }
 
 .dot{ opacity: 0.35; }
@@ -373,7 +436,7 @@ html, body, #root {
 }
 
 .heroHint{
-  margin-top: 16px;
+  margin-top: 64px;
   text-align: center;
   font-size: 15px;
   font-weight: 900;
@@ -453,9 +516,34 @@ html, body, #root {
   color: rgba(235,255,245,0.70);
 }
 
+@keyframes glowBreathing {
+  0%, 100% {
+    text-shadow: 0 0 12px rgba(34, 255, 136, 0.6);
+    opacity: 0.85;
+  }
+  50% {
+    text-shadow: 0 0 28px rgba(34, 255, 136, 0.95);
+    opacity: 1;
+  }
+}
+
+@keyframes shake {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(2px);
+  }
+}
+
 .good{
+  font-size: 16px;
   color: rgba(34,255,136,0.95);
   font-weight: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: glowBreathing 3s ease-in-out infinite;
 }
 
 /* mini card */
@@ -607,6 +695,7 @@ html, body, #root {
 .btn.primary:hover:not(:disabled){
   background: rgba(34,255,136,0.18);
   box-shadow: 0 0 34px rgba(34,255,136,0.30);
+
 }
 
 /* subtle button for header */
@@ -637,26 +726,107 @@ html, body, #root {
 /* -------------------------
    LANDING (unchanged)
 ------------------------- */
-.landing {
+/* =========================
+   LANDING – SUBTLE LIGHT RAYS
+========================= */
+
+.landing{
   position: fixed;
   inset: 0;
   min-height: 100vh;
   min-width: 100vw;
+
   display: grid;
   place-items: center;
+
   background: radial-gradient(
     ellipse at center,
-    #06231a 0%,
-    #03130d 55%,
-    #010807 100%
+    #04160f 0%,   /* mai dark decât #06231a */
+    #020b07 58%,  /* mai dark decât #03130d */
+    #000404 100%  /* mai dark decât #010807 */
   );
+
+  overflow: hidden;
 }
 
-.landingInner {
-  width: min(920px, 92vw);
-  text-align: center;
-  padding: 48px 24px;
+/* RAZELE – puține, late, lente */
+.landing::before{
+  content: "";
+  position: absolute;
+
+  left: 50%;
+  top: 44%;
+  transform: translate(-50%, -50%);
+
+  width: 220vmax;
+  height: 220vmax;
+  border-radius: 50%;
+
+  background: conic-gradient(
+    from 0deg,
+    rgba(34,255,136,0.00) 0deg,
+    rgba(34,255,136,0.14) 22deg,
+    rgba(34,255,136,0.00) 44deg,
+
+    rgba(52,255,214,0.10) 95deg,
+    rgba(34,255,136,0.00) 125deg,
+
+    rgba(34,255,136,0.12) 185deg,
+    rgba(34,255,136,0.00) 215deg,
+
+    rgba(52,255,214,0.10) 275deg,
+    rgba(34,255,136,0.00) 305deg,
+
+    rgba(34,255,136,0.00) 360deg
+  );
+
+  filter: blur(14px);
+  opacity: 0.22;
+  mix-blend-mode: screen;
+  
+  pointer-events: none;
+  z-index: 0;
+
+  animation: landingRaysRotate 36s linear infinite;
 }
+
+/* Glow radial subtil */
+.landing::after{
+  content: "";
+  position: absolute;
+  inset: -40%;
+
+  background: radial-gradient(
+    circle at 50% 44%,
+    rgba(34,255,136,0.12) 0%,
+    rgba(34,255,136,0.06) 35%,
+    rgba(34,255,136,0.00) 70%
+  );
+
+  filter: blur(32px);
+  opacity: 0.2;
+
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Animația razelor */
+@keyframes landingRaysRotate{
+  from {
+    transform: translate(-50%, -50%) rotate(0deg);
+  }
+  to {
+    transform: translate(-50%, -50%) rotate(360deg);
+  }
+}
+
+/* Asigură că branding-ul stă peste raze */
+.landingInner{
+  text-align: center;
+  position: relative;
+  z-index: 1;
+}
+
 
 .brand {
   font-size: clamp(64px, 9vw, 120px);
@@ -800,4 +970,97 @@ html, body, #root {
   opacity: 0.85;
   padding-top: 6px;
 }
+
+/* -------------------------
+   NOTIFICATION MODAL
+------------------------- */
+.notificationOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  display: grid;
+  place-items: center;
+  z-index: 9999;
+  backdrop-filter: blur(4px);
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.notificationModal {
+  background: linear-gradient(
+    135deg,
+    rgba(6, 35, 26, 0.95) 0%,
+    rgba(3, 19, 13, 0.95) 100%
+  );
+  border: 2px solid rgba(34, 255, 136, 0.35);
+  border-radius: 24px;
+  padding: 40px;
+  max-width: 450px;
+  width: 90%;
+  text-align: center;
+  box-shadow: 0 20px 80px rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(10px);
+  animation: slideUp 0.4s ease-out;
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(40px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.notificationTitle {
+  font-size: 28px;
+  font-weight: 950;
+  margin-bottom: 16px;
+  letter-spacing: 0.5px;
+  text-shadow: 0 0 24px rgba(34, 255, 136, 0.25);
+}
+
+.notificationMessage {
+  font-size: 16px;
+  color: rgba(235, 255, 245, 0.85);
+  line-height: 1.6;
+  margin-bottom: 28px;
+  letter-spacing: 0.3px;
+}
+
+.notificationBtn {
+  width: 100%;
+  padding: 14px 24px;
+  border: 2px solid rgba(34, 255, 136, 0.4);
+  background: rgba(34, 255, 136, 0.12);
+  color: var(--accent);
+  font-weight: 900;
+  border-radius: 14px;
+  cursor: pointer;
+  font-size: 16px;
+  transition: all 0.2s ease;
+  box-shadow: 0 0 20px rgba(34, 255, 136, 0.12);
+}
+
+.notificationBtn:hover {
+  background: rgba(34, 255, 136, 0.22);
+  box-shadow: 0 0 32px rgba(34, 255, 136, 0.25);
+  transform: translateY(-2px);
+}
+
+.notificationBtn:active {
+  transform: translateY(0);
+}
+
+
 

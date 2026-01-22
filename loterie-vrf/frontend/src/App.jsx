@@ -5,6 +5,7 @@ import "./App.css";
 
 import Landing from "./components/Landing";
 import Dashboard from "./components/Dashboard";
+import RoundNotification from "./components/RoundNotification";
 
 function isRateLimitErr(e) {
   const msg = String(e?.shortMessage || e?.reason || e?.message || "").toLowerCase();
@@ -28,6 +29,10 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState("");
 
+  // notification state
+  const [showNotification, setShowNotification] = useState(null); // null | 'win' | 'lose'
+  const [prevState, setPrevState] = useState(0);
+
   // reads
   const [ticketPrice, setTicketPrice] = useState(0n);
   const [intervalSec, setIntervalSec] = useState(0n);
@@ -39,6 +44,7 @@ export default function App() {
   const [state, setState] = useState(0);
   const [lastWinner, setLastWinner] = useState(null);
   const [lastPrize, setLastPrize] = useState(0n);
+  const [previousPrize, setPreviousPrize] = useState(0n);
   const [lastRequestId, setLastRequestId] = useState(0n);
 
   // ✅ new: tickets split
@@ -93,6 +99,19 @@ export default function App() {
     if (timeLeft > 0n) return `Tickets are on sale. Sales end in ${timeLeft.toString()}s.`;
     return "Ticket sales are closed. The draw will start automatically shortly.";
   }, [state, roundStarted, timeLeft, isWinner, lastPrize]);
+
+  // detect round end and show notification
+  useEffect(() => {
+    // rond s-a terminat (state a ajuns 2 = PAID)
+    if (prevState !== 2 && state === 2 && roundStarted && myTicketsRound > 0n) {
+      if (isWinner) {
+        setShowNotification("win");
+      } else {
+        setShowNotification("lose");
+      }
+    }
+    setPrevState(state);
+  }, [state, prevState, roundStarted, myTicketsRound, isWinner]);
 
   function pushEvent(label, payload) {
     setEvents((prev) => {
@@ -153,7 +172,7 @@ export default function App() {
 
   async function refresh({ force = false } = {}) {
     if (!force) {
-      if (Date.now() - lastRefreshMs.current < 800) return;
+      if (Date.now() - lastRefreshMs.current < 500) return; // aggressive throttle
     }
     if (Date.now() < backoffUntilMs.current) return;
     if (refreshInFlight.current) return;
@@ -168,7 +187,7 @@ export default function App() {
         return;
       }
 
-      const [tp, intv, lts, p, pc, st, lw, lp, lr] = await Promise.all([
+      const [tp, intv, lts, p, pc, st, lw, lp, pp, lr] = await Promise.all([
         c.ticketPrice(),
         c.interval(),
         c.lastTimeStamp(),
@@ -177,8 +196,10 @@ export default function App() {
         c.state(),
         c.lastWinner(),
         c.lastPrize(),
+        c.previousPrize(),
         c.lastRequestId(),
       ]);
+
 
       setTicketPrice(tp ?? 0n);
       setIntervalSec(intv ?? 0n);
@@ -191,14 +212,21 @@ export default function App() {
       setState(stNum);
       setLastWinner(lw ?? null);
       setLastPrize(lp ?? 0n);
+      setPreviousPrize(pp ?? 0n);
       setLastRequestId(lr ?? 0n);
 
       // ✅ tickets: all-time + this round
       if (account) {
-        const [allTime, roundCt] = await Promise.all([
-          c.ticketsByAddress(account),
-          computeMyRoundTickets({ c, addr: account, lts: lts ?? 0n }),
-        ]);
+        // skip round ticket query if we're in CALCULATING state (expensive operation)
+        // we'll check again on next refresh after state changes
+        const shouldCheckRound = state !== 1;
+        
+        const allTime = await c.ticketsByAddress(account);
+        let roundCt = myTicketsRound; // keep previous value if in CALCULATING state
+
+        if (shouldCheckRound) {
+          roundCt = await computeMyRoundTickets({ c, addr: account, lts: lts ?? 0n });
+        }
 
         setMyTicketsAllTime(allTime ?? 0n);
 
@@ -222,12 +250,12 @@ export default function App() {
     }
   }
 
-  // polling: OPEN la 4s, CALCULATING la 1.5s
+  // polling: OPEN la 2.5s, CALCULATING la 700ms (aggressive for faster response)
   useEffect(() => {
     if (!account || wrongNetwork) return;
 
-    const base = 4000;
-    const fast = 1500;
+    const base = 2500; // check every 2.5s when waiting for round to end
+    const fast = 700; // check every 700ms when VRF is calculating
 
     const tick = async () => {
       await refresh();
@@ -383,35 +411,44 @@ export default function App() {
   }
 
   return (
-    <Dashboard
-      account={account}
-      chainId={chainId}
-      hasMM={hasMM}
-      wrongNetwork={wrongNetwork}
-      chainName={CHAIN_NAME}
-      expectedChainId={EXPECTED_CHAIN_ID}
-      status={status}
-      roundPhaseText={roundPhaseText}
-      state={state}
-      ticketPrice={ticketPrice}
-      pot={pot}
-      players={players}
-      myTicketsRound={myTicketsRound}
-      myTicketsAllTime={myTicketsAllTime}
-      intervalSec={intervalSec}
-      timeLeft={timeLeft}
-      roundStarted={roundStarted}
-      lastRequestId={lastRequestId}
-      lastWinner={lastWinner}
-      lastPrize={lastPrize}
-      isWinner={isWinner}
-      loading={loading}
-      canBuy={canBuy}
-      canWithdraw={canWithdraw}
-      onBuy={buyTicket}
-      onWithdraw={withdraw}
-      onLogout={logout}
-      events={events}
-    />
+    <>
+      <Dashboard
+        account={account}
+        chainId={chainId}
+        hasMM={hasMM}
+        wrongNetwork={wrongNetwork}
+        chainName={CHAIN_NAME}
+        expectedChainId={EXPECTED_CHAIN_ID}
+        status={status}
+        roundPhaseText={roundPhaseText}
+        state={state}
+        ticketPrice={ticketPrice}
+        pot={pot}
+        players={players}
+        myTicketsRound={myTicketsRound}
+        myTicketsAllTime={myTicketsAllTime}
+        intervalSec={intervalSec}
+        timeLeft={timeLeft}
+        roundStarted={roundStarted}
+        lastRequestId={lastRequestId}
+        lastWinner={lastWinner}
+        lastPrize={lastPrize}
+        previousPrize={previousPrize}
+        isWinner={isWinner}
+        loading={loading}
+        canBuy={canBuy}
+        canWithdraw={canWithdraw}
+        onBuy={buyTicket}
+        onWithdraw={withdraw}
+        onLogout={logout}
+        events={events}
+      />
+      {showNotification && (
+        <RoundNotification
+          isWinner={showNotification === "win"}
+          onClose={() => setShowNotification(null)}
+        />
+      )}
+    </>
   );
 }
