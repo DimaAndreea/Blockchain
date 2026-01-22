@@ -1,3 +1,6 @@
+am folosit https://github.com/weiweiyeih/web3.0-lottery-smart-contract pt inspo frontend
+
+
 # PT SANZIANA (CITESTE !!!!!!)
 
 asadar, pt a rula aplicatia:
