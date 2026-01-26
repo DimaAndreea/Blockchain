@@ -2,7 +2,7 @@
    BASE
 ------------------------- */
 :root {
-  /* ---------- FONTS (arcade + crypto) ---------- */
+  /* ---------- FONTS ---------- */
   --font-ui: "Oxanium", system-ui, -apple-system, BlinkMacSystemFont,
     "Segoe UI", Helvetica, Arial, sans-serif;
 
@@ -49,8 +49,6 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
-
-
 * { box-sizing: border-box; }
 
 html,
@@ -60,13 +58,11 @@ body,
   height: 100%;
   margin: 0;
 
-  /* folosește fonturile definite în :root */
   font-family: var(--font-ui);
 
   background: var(--bg-main);
   color: var(--text);
 }
-
 
 /* -------------------------
    PAGE (FULL WIDTH)
@@ -81,13 +77,10 @@ body,
   flex-direction: column;
   justify-content: center;
 
-  /* îl urcă puțin ca să nu pară “prea jos” */
   padding-top: 40px;
   padding-bottom: 60px;
 }
 
-
-/* ultra wide: keep some breathing room but still full */
 @media (min-width: 1400px) {
   .page { padding: 20px 32px 44px; }
 }
@@ -97,9 +90,6 @@ body,
   .page { padding: 14px 12px 30px; }
 }
 
-/* -------------------------
-   HEADER (NEW)
-------------------------- */
 .appHeader{
   width: 100%;
   display: grid;
@@ -125,7 +115,6 @@ body,
   box-shadow: 0 0 14px rgba(34,255,136,0.20);
 }
 
-/* left */
 .hdrLeft{
   display: flex;
   align-items: center;
@@ -155,7 +144,6 @@ body,
   color: rgba(235,255,245,0.65);
 }
 
-/* center */
 .hdrCenter{
   display: flex;
   justify-content: center;
@@ -179,7 +167,6 @@ body,
   justify-content: flex-end;
 }
 
-/* small status line under header */
 .statusLine{
   width: 100%;
   margin: 10px 0 18px;
@@ -203,10 +190,6 @@ body,
   .hdrLeft, .hdrRight{ justify-content: center; }
 }
 
-/* -------------------------
-   MODERN LAYOUT (FULL WIDTH)
-------------------------- */
-/* cele două coloane trebuie să aibă aceeași înălțime */
 .layout{
   display: grid;
   grid-template-columns: 1.55fr 1fr;
@@ -282,17 +265,16 @@ body,
 ------------------------- */
 .hero{
   position: relative;
-  overflow: hidden; /* poate rămâne, ca să nu iasă conținutul */
+  overflow: hidden; 
   padding: 22px;
   min-height: 380px;
 }
 
 .heroWrap{
   position: relative;
-  overflow: visible; /* IMPORTANT: nu taie glow-ul */
+  overflow: visible; 
 }
 
-/* glow-urile se desenează pe wrapper, nu pe card */
 .heroWrap::before{
   content:"";
   position:absolute;
@@ -331,7 +313,6 @@ body,
   z-index:0;
 }
 
-/* cardul stă deasupra glow-ului */
 .heroWrap .hero{
   position: relative;
   z-index: 1;
@@ -348,7 +329,6 @@ body,
   z-index: 1;
 }
 
-/* Centered prize */
 .heroHeaderCentered {
   justify-content: center;
   text-align: center;
@@ -698,7 +678,6 @@ body,
 
 }
 
-/* subtle button for header */
 .btn.ghost{
   width: auto;
   padding: 10px 14px;
@@ -724,11 +703,8 @@ body,
 }
 
 /* -------------------------
-   LANDING (unchanged)
+   LANDING 
 ------------------------- */
-/* =========================
-   LANDING – SUBTLE LIGHT RAYS
-========================= */
 
 .landing{
   position: fixed;
@@ -749,7 +725,6 @@ body,
   overflow: hidden;
 }
 
-/* RAZELE – puține, late, lente */
 .landing::before{
   content: "";
   position: absolute;
@@ -790,7 +765,7 @@ body,
   animation: landingRaysRotate 36s linear infinite;
 }
 
-/* Glow radial subtil */
+/* radial glow */
 .landing::after{
   content: "";
   position: absolute;
@@ -820,7 +795,6 @@ body,
   }
 }
 
-/* Asigură că branding-ul stă peste raze */
 .landingInner{
   text-align: center;
   position: relative;

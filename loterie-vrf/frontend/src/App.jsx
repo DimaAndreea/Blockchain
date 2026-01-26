@@ -172,7 +172,7 @@ export default function App() {
 
   async function refresh({ force = false } = {}) {
     if (!force) {
-      if (Date.now() - lastRefreshMs.current < 500) return; // aggressive throttle
+      if (Date.now() - lastRefreshMs.current < 500) return; 
     }
     if (Date.now() < backoffUntilMs.current) return;
     if (refreshInFlight.current) return;
@@ -250,7 +250,7 @@ export default function App() {
     }
   }
 
-  // polling: OPEN la 2.5s, CALCULATING la 700ms (aggressive for faster response)
+  // polling: OPEN 2.5s, CALCULATING 700ms (aggressive for faster response)
   useEffect(() => {
     if (!account || wrongNetwork) return;
 
