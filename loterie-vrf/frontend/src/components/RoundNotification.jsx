@@ -7,7 +7,7 @@ export default function RoundNotification({ isWinner, onClose }) {
         {isWinner ? (
           <>
             <div className="notificationTitle" style={{ color: "#22ff88" }}>
-              Congratulations! 🎉
+              Congratulations!
             </div>
             <div className="notificationMessage">
               You won this round! Your prize is waiting to be withdrawn.
@@ -19,7 +19,7 @@ export default function RoundNotification({ isWinner, onClose }) {
         ) : (
           <>
             <div className="notificationTitle" style={{ color: "#e67e22" }}>
-              Better luck next time! 🍀
+              Better luck next time!
             </div>
             <div className="notificationMessage">
               You didn't win this round, but don't give up! Every ticket is a chance to win.

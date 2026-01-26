@@ -15,7 +15,7 @@ export function useWallet() {
     return chainId.toLowerCase() !== EXPECTED_CHAIN_ID.toLowerCase();
   }, [chainId]);
 
-  // Init: doar detectăm chainId, NU setăm account automat
+  // init: only detect chain id, do not set account automatically
   useEffect(() => {
     const provider = getInjectedProvider();
     if (!provider) {
@@ -36,7 +36,7 @@ export function useWallet() {
     })();
 
     const onAccounts = (accs) => {
-      // dacă user schimbă contul după ce e conectat, actualizăm
+      // if user changes account after connecting, update
       setAccount(accs?.[0] || null);
       setStatus(accs?.length ? "Cont schimbat" : "Deconectat");
     };
@@ -70,7 +70,7 @@ export function useWallet() {
       const net = await provider.getNetwork();
       setAccount(accs?.[0] || null);
       setChainId(`0x${net.chainId.toString(16)}`);
-      setStatus("Conectat ✅");
+      setStatus("Conectat");
     } catch (e) {
       setStatus(errMsg(e, "Conectare anulată"));
     } finally {
@@ -78,7 +78,7 @@ export function useWallet() {
     }
   }
 
-  // “Disconnect” local (reset UI). Nu poate forța MetaMask să uite permisiunea.
+  // "disconnect" local (reset ui). cannot force metamask to forget permission.
   function disconnect() {
     setAccount(null);
     setStatus("Deconectat (local)");

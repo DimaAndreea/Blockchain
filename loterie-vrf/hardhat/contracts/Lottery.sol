@@ -5,10 +5,11 @@ import {VRFConsumerBaseV2Plus} from "@chainlink/contracts/src/v0.8/vrf/dev/VRFCo
 import {VRFV2PlusClient} from "@chainlink/contracts/src/v0.8/vrf/dev/libraries/VRFV2PlusClient.sol";
 import {IVRFCoordinatorV2Plus} from "@chainlink/contracts/src/v0.8/vrf/dev/interfaces/IVRFCoordinatorV2Plus.sol";
 import {AutomationCompatibleInterface} from "@chainlink/contracts/src/v0.8/automation/interfaces/AutomationCompatibleInterface.sol";
+import {LotteryMath} from "./LotteryMath.sol";
 
 contract Lottery is VRFConsumerBaseV2Plus, AutomationCompatibleInterface {
     // -----------------------
-    // Errors
+    // errors
     // -----------------------
     error Lottery__WrongETH();
     error Lottery__UpkeepNotNeeded(uint256 balance, uint256 players, uint256 state);
@@ -18,7 +19,7 @@ contract Lottery is VRFConsumerBaseV2Plus, AutomationCompatibleInterface {
     error Lottery__WrongState(uint256 expected, uint256 actual);
 
     // -----------------------
-    // Events
+    // events
     // -----------------------
     event TicketBought(address indexed buyer, uint256 amount, uint256 totalPlayers, uint256 pot);
     event RandomnessRequested(uint256 indexed requestId);
@@ -26,7 +27,7 @@ contract Lottery is VRFConsumerBaseV2Plus, AutomationCompatibleInterface {
     event PrizeWithdrawn(address indexed winner, uint256 amount);
 
     // -----------------------
-    // State machine
+    // state machine
     // -----------------------
     enum State {
         OPEN,
@@ -36,12 +37,12 @@ contract Lottery is VRFConsumerBaseV2Plus, AutomationCompatibleInterface {
     State public state;
 
     // -----------------------
-    // Lottery params
+    // lottery params
     // -----------------------
     uint256 public immutable ticketPrice;
     uint256 public immutable interval;
 
-    // 0 = runda nu a început încă (nu există primul bilet)
+    // 0 = round has not started yet (no first ticket)
     uint256 public lastTimeStamp;
 
     address[] private players;
@@ -49,12 +50,12 @@ contract Lottery is VRFConsumerBaseV2Plus, AutomationCompatibleInterface {
     // payout (pull pattern)
     address public lastWinner;
     uint256 public lastPrize;
-    uint256 public previousPrize; // prize din runda trecuta (salvata dupa withdraw)
+    uint256 public previousPrize; // prize from previous round (saved after withdraw)
 
     mapping(address => uint256) public ticketsByAddress;
 
     // -----------------------
-    // VRF params
+    // vrf params
     // -----------------------
     IVRFCoordinatorV2Plus public immutable COORDINATOR;
     uint256 public immutable subscriptionId;
@@ -67,7 +68,7 @@ contract Lottery is VRFConsumerBaseV2Plus, AutomationCompatibleInterface {
     uint256 public lastRequestId;
 
     // -----------------------
-    // Modifier (cerință: ✅)
+    // modifier (requirement)
     // -----------------------
     modifier inState(State expected) {
         if (state != expected) revert Lottery__WrongState(uint256(expected), uint256(state));
@@ -84,7 +85,7 @@ contract Lottery is VRFConsumerBaseV2Plus, AutomationCompatibleInterface {
         ticketPrice = _ticketPriceWei;
         interval = _intervalSeconds;
 
-        // runda NU pornește până nu intră primul bilet
+        // round does not start until the first ticket enters
         lastTimeStamp = 0;
 
         COORDINATOR = IVRFCoordinatorV2Plus(_vrfCoordinator);
@@ -95,7 +96,7 @@ contract Lottery is VRFConsumerBaseV2Plus, AutomationCompatibleInterface {
     }
 
     // -----------------------
-    // Public views
+    // public views
     // -----------------------
     function getPlayersCount() external view returns (uint256) {
         return players.length;
@@ -107,18 +108,18 @@ contract Lottery is VRFConsumerBaseV2Plus, AutomationCompatibleInterface {
 
     function calcWinnerIndex(uint256 randomWord, uint256 nPlayers) public pure returns (uint256) {
         if (nPlayers == 0) return 0;
-        return randomWord % nPlayers;
+        return LotteryMath.winnerIndex(randomWord, nPlayers);
     }
 
     // -----------------------
-    // Enter lottery
-    // - primul bilet pornește timer-ul rundei
-    // - bilete permise doar când e OPEN (frontend blochează după expirare)
+    // enter lottery
+    // - first ticket starts the round timer
+    // - tickets allowed only when open (frontend blocks after expiry)
     // -----------------------
     function buyTicket() external payable inState(State.OPEN) {
         if (msg.value != ticketPrice) revert Lottery__WrongETH();
 
-        // pornește timer-ul DOAR când intră primul jucător în runda curentă
+        // start the timer only when the first player joins the current round
         if (players.length == 0) {
             lastTimeStamp = block.timestamp;
         }
@@ -130,7 +131,7 @@ contract Lottery is VRFConsumerBaseV2Plus, AutomationCompatibleInterface {
     }
 
     // -----------------------
-    // Chainlink Automation
+    // chainlink automation
     // -----------------------
     function checkUpkeep(bytes calldata)
         external
@@ -140,7 +141,7 @@ contract Lottery is VRFConsumerBaseV2Plus, AutomationCompatibleInterface {
     {
         bool isOpen = (state == State.OPEN);
 
-        // dacă nu a început runda (nu avem încă primul bilet), nu facem upkeep
+        // if the round hasn't started (no first ticket yet), do not perform upkeep
         bool roundStarted = (lastTimeStamp != 0);
 
         bool timePassed = roundStarted && (block.timestamp - lastTimeStamp) >= interval;
@@ -150,7 +151,7 @@ contract Lottery is VRFConsumerBaseV2Plus, AutomationCompatibleInterface {
         upkeepNeeded = isOpen && timePassed && hasPlayers && hasBalance;
     }
 
-    // Automation (sau oricine) poate apela când checkUpkeep e true
+    // automation (or anyone) can call when checkUpkeep is true
     function performUpkeep(bytes calldata) external override inState(State.OPEN) {
         (bool upkeepNeeded, ) = this.checkUpkeep("");
         if (!upkeepNeeded) {
@@ -177,7 +178,7 @@ contract Lottery is VRFConsumerBaseV2Plus, AutomationCompatibleInterface {
     }
 
     // -----------------------
-    // VRF callback
+    // vrf callback
     // -----------------------
     function fulfillRandomWords(uint256, uint256[] calldata randomWords) internal override {
         uint256 randomWord = randomWords[0];
@@ -194,7 +195,7 @@ contract Lottery is VRFConsumerBaseV2Plus, AutomationCompatibleInterface {
     }
 
     // -----------------------
-    // Withdraw (winner only)
+    // withdraw (winner only)
     // -----------------------
     function withdrawPrize() external inState(State.PAID) {
         if (msg.sender != lastWinner) revert Lottery__OnlyWinner();
@@ -203,11 +204,11 @@ contract Lottery is VRFConsumerBaseV2Plus, AutomationCompatibleInterface {
         if (amount == 0) revert Lottery__NothingToWithdraw();
 
         // effects first
-        previousPrize = lastPrize; // salveaza prize-ul inainte sa fie sters
+        previousPrize = lastPrize; // save prize before it is cleared
         lastPrize = 0;
         delete players;
 
-        // reset rundă: următoarea rundă pornește la primul bilet
+        // reset round: next round starts at first ticket
         lastTimeStamp = 0;
         state = State.OPEN;
 

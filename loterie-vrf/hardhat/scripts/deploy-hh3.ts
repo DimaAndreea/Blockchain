@@ -61,7 +61,7 @@ async function main() {
   // 6) set provider in Lottery
   const tx = await (lottery as any).setProvider(rpAddr);
   await tx.wait();
-  console.log("Provider set in Lottery ✅");
+  console.log("Provider set in Lottery");
 
   console.log("Ticket price:", ticketPriceWei.toString());
 }

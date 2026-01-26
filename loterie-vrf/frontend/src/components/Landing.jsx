@@ -21,7 +21,7 @@ export default function Landing({
   return (
     <div className="landing">
       <div className="landingInner">
-        {/* 🔥 MARQUEE FRAME */}
+        {/* MARQUEE FRAME */}
         <div className="marqueeFrame">
           <div className="bulbRing" aria-hidden="true" />
 

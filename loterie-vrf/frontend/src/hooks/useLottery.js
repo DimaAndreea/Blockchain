@@ -129,6 +129,53 @@ export function useLottery({ account, wrongNetwork, setStatus, setLoading }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [account, wrongNetwork, state]);
 
+  // listen to on-chain events and update ui (observer pattern)
+  useEffect(() => {
+    if (!account || wrongNetwork) return;
+    const c = getReadContract();
+    if (!c || !c.on) return;
+
+    const onTicket = (buyer, amount, totalPlayers, pot) => {
+      try {
+        pushEvent("TicketBought", { buyer, amount: amount?.toString?.() ?? amount, totalPlayers: totalPlayers?.toString?.() ?? totalPlayers, pot: pot?.toString?.() ?? pot });
+      } catch {}
+      void refresh({ force: true });
+    };
+
+    const onRandomnessRequested = (requestId) => {
+      pushEvent("RandomnessRequested", { requestId: requestId?.toString?.() ?? requestId });
+    };
+
+    const onWinner = (winner, prize, randomWord) => {
+      try {
+        pushEvent("WinnerSelected", { winner, prize: prize?.toString?.() ?? prize, randomWord: randomWord?.toString?.() ?? randomWord });
+      } catch {}
+      void refresh({ force: true });
+    };
+
+    const onPrizeWithdrawn = (winner, amount) => {
+      try {
+        pushEvent("PrizeWithdrawn", { winner, amount: amount?.toString?.() ?? amount });
+      } catch {}
+      void refresh({ force: true });
+    };
+
+    c.on("TicketBought", onTicket);
+    c.on("RandomnessRequested", onRandomnessRequested);
+    c.on("WinnerSelected", onWinner);
+    c.on("PrizeWithdrawn", onPrizeWithdrawn);
+
+    return () => {
+      try {
+        c.removeListener("TicketBought", onTicket);
+        c.removeListener("RandomnessRequested", onRandomnessRequested);
+        c.removeListener("WinnerSelected", onWinner);
+        c.removeListener("PrizeWithdrawn", onPrizeWithdrawn);
+      } catch {}
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [account, wrongNetwork]);
+
   async function buyTicket() {
     setStatus?.("");
     try {
@@ -136,13 +183,22 @@ export function useLottery({ account, wrongNetwork, setStatus, setLoading }) {
       const c = await getWriteContract();
       if (!c) throw new Error("MetaMask indisponibil");
 
-      const tx = await c.buyTicket({ value: ticketPrice });
+      // estimate gas and add margin
+      let tx;
+      try {
+        const est = await c.estimateGas.buyTicket({ value: ticketPrice });
+        const gasLimit = est * 120n / 100n; // +20%
+        tx = await c.buyTicket({ value: ticketPrice, gasLimit });
+      } catch (e) {
+        // fallback without gasLimit if estimate fails
+        tx = await c.buyTicket({ value: ticketPrice });
+      }
       pushEvent("TxSent", { type: "buyTicket", hash: tx.hash });
       setStatus?.("buyTicket trimis…");
 
       await tx.wait();
       pushEvent("TxMined", { type: "buyTicket", hash: tx.hash });
-      setStatus?.("Bilet cumpărat 🎟️");
+      setStatus?.("Bilet cumpărat");
 
       await refresh({ force: true });
     } catch (e) {
@@ -161,13 +217,20 @@ export function useLottery({ account, wrongNetwork, setStatus, setLoading }) {
       const c = await getWriteContract();
       if (!c) throw new Error("MetaMask indisponibil");
 
-      const tx = await c.performUpkeep("0x");
+      let tx;
+      try {
+        const est = await c.estimateGas.performUpkeep("0x");
+        const gasLimit = est * 120n / 100n;
+        tx = await c.performUpkeep("0x", { gasLimit });
+      } catch (e) {
+        tx = await c.performUpkeep("0x");
+      }
       pushEvent("TxSent", { type: "performUpkeep", hash: tx.hash });
       setStatus?.("performUpkeep trimis…");
 
       await tx.wait();
       pushEvent("TxMined", { type: "performUpkeep", hash: tx.hash });
-      setStatus?.("Upkeep confirmat ✅ (așteptăm VRF)");
+      setStatus?.("Upkeep confirmat (așteptăm VRF)");
 
       await refresh({ force: true });
     } catch (e) {
@@ -186,13 +249,20 @@ export function useLottery({ account, wrongNetwork, setStatus, setLoading }) {
       const c = await getWriteContract();
       if (!c) throw new Error("MetaMask indisponibil");
 
-      const tx = await c.withdrawPrize();
+      let tx;
+      try {
+        const est = await c.estimateGas.withdrawPrize();
+        const gasLimit = est * 120n / 100n;
+        tx = await c.withdrawPrize({ gasLimit });
+      } catch (e) {
+        tx = await c.withdrawPrize();
+      }
       pushEvent("TxSent", { type: "withdrawPrize", hash: tx.hash });
       setStatus?.("withdrawPrize trimis…");
 
       await tx.wait();
       pushEvent("TxMined", { type: "withdrawPrize", hash: tx.hash });
-      setStatus?.("Premiu retras 💸");
+      setStatus?.("Premiu retras");
 
       await refresh({ force: true });
     } catch (e) {

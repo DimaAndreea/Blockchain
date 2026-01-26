@@ -383,13 +383,13 @@ export default function Dashboard({
               <b>{players.toString()}</b>
             </div>
 
-            {/* ✅ THIS ROUND */}
+            {/* this round */}
             <div className="row">
               <span className="muted">My tickets</span>
               <b>{myRound.toString()}</b>
             </div>
 
-            {/* ✅ ALL TIME */}
+            {/* all time */}
             <div className="row tiny">
               <span className="muted">All-time tickets</span>
               <b>{(myTicketsAllTime ?? 0n).toString()}</b>

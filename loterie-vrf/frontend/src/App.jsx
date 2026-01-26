@@ -47,7 +47,7 @@ export default function App() {
   const [previousPrize, setPreviousPrize] = useState(0n);
   const [lastRequestId, setLastRequestId] = useState(0n);
 
-  // ✅ new: tickets split
+  // new: tickets split
   const [myTicketsAllTime, setMyTicketsAllTime] = useState(0n);
   const [myTicketsRound, setMyTicketsRound] = useState(0n);
 
@@ -102,7 +102,7 @@ export default function App() {
 
   // detect round end and show notification
   useEffect(() => {
-    // rond s-a terminat (state a ajuns 2 = PAID)
+    // round ended (state reached 2 = paid)
     if (prevState !== 2 && state === 2 && roundStarted && myTicketsRound > 0n) {
       if (isWinner) {
         setShowNotification("win");
@@ -125,7 +125,7 @@ export default function App() {
   const backoffUntilMs = useRef(0);
   const lastRefreshMs = useRef(0);
 
-  // ✅ helper: compute round tickets from TicketBought logs since lastTimeStamp
+  // helper: compute round tickets from ticketbought logs since lasttimestamp
   async function computeMyRoundTickets({ c, addr, lts }) {
     if (!addr) return 0n;
     if (!lts || lts === 0n) return 0n;
@@ -215,7 +215,7 @@ export default function App() {
       setPreviousPrize(pp ?? 0n);
       setLastRequestId(lr ?? 0n);
 
-      // ✅ tickets: all-time + this round
+      // tickets: all-time + this round
       if (account) {
         // skip round ticket query if we're in CALCULATING state (expensive operation)
         // we'll check again on next refresh after state changes

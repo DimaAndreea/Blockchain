@@ -81,7 +81,7 @@ body,
   flex-direction: column;
   justify-content: center;
 
-  /* ✅ îl urcă puțin ca să nu pară “prea jos” */
+  /* îl urcă puțin ca să nu pară “prea jos” */
   padding-top: 40px;
   padding-bottom: 60px;
 }
@@ -215,7 +215,7 @@ body,
 }
 
 @media (min-width: 1600px){
-  /* ✅ even more spread on huge monitors */
+  /* even more spread on huge monitors */
   .layout{
     grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
     gap: 26px;
