@@ -24,11 +24,11 @@ async function main() {
   console.log("User1:", user1Addr);
   console.log("User2:", user2Addr);
 
-  // Load artifacts
+  // load artifacts
   const lotteryArt = loadArtifact("artifacts/contracts/Lottery.sol/Lottery.json");
   const rpArt = loadArtifact("artifacts/contracts/RandomnessProvider.sol/RandomnessProvider.json");
 
-  // IMPORTANT: put here the addresses printed by deploy
+  // important: put here the addresses printed by deploy
   const LOTTERY_ADDR = "0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0";
   const RP_ADDR = "0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9";
 
@@ -61,7 +61,7 @@ async function main() {
   console.log("Draw requested. requestId:", reqId.toString());
 
   console.log("\n--- DELIVER RANDOM (SIMULATED VRF CALLBACK) ---");
-  // Choose any randomWord you want for demo
+  // choose any randomword you want for demo
   const randomWord = 777n;
   tx = await rpOwner.deliverRandom(reqId, randomWord);
   await tx.wait();
@@ -73,16 +73,16 @@ async function main() {
   console.log("Prize:", prize.toString());
 
   console.log("\n--- WITHDRAW (WINNER) ---");
-  // Winner withdraws
+  // winner withdraws
   const winnerLower = (winner as string).toLowerCase();
   if (winnerLower === user1Addr.toLowerCase()) {
     tx = await lotteryUser1.withdrawPrize();
     await tx.wait();
-    console.log("User1 withdrew prize ✅");
+    console.log("User1 withdrew prize");
   } else if (winnerLower === user2Addr.toLowerCase()) {
     tx = await lotteryUser2.withdrawPrize();
     await tx.wait();
-    console.log("User2 withdrew prize ✅");
+    console.log("User2 withdrew prize");
   } else {
     console.log("Winner is not user1/user2 (unexpected in this demo).");
   }
